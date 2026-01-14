@@ -1,11 +1,10 @@
-﻿#[derive(Clone, Debug)]
-pub struct Span<T> {
-    pub item: T,
+﻿#[derive(Clone, Debug, Copy, PartialEq)]
+pub struct Span {
     pub pos: usize,   
     pub len: usize, 
 }
 
-impl<T> Span<T>{
+impl Span{
     pub fn start(&self) -> usize{
         self.pos
     }
