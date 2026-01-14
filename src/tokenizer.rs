@@ -1,14 +1,51 @@
-﻿#[derive(Debug)]
-pub enum NextTokenError<'a>{
-    WrongType(&'a Token),
-}
+﻿use crate::span::*;
+
+static STR_NUMBER: &str = "number";
+static STR_RESERVE: &str = "reserve";
 
 #[derive(Debug)]
-pub enum Token{
+pub enum NextTokenError<'a>{
+    WrongType{
+        expected: &'static str,
+        found: &'a Token,
+    },
+}
+
+impl<'a> NextTokenError<'a>{
+    pub fn error_print(&'a self, source: &'a str){
+         match self {
+            NextTokenError::WrongType { expected, found } => {
+                let line_number = 1;
+                let col_number = found.pos + 1; // pos 从 0 开始，所以 +1
+
+                // 打印行内容
+                println!("Error: expected {}, found {:?} at line {}, column {}",
+                         expected, found.item, line_number, col_number);
+                println!("{}", source);
+
+                // 打印箭头指示位置
+                let mut marker = String::new();
+                for _ in 0..found.pos {
+                    marker.push(' ');
+                }
+                for _ in 0..found.len {
+                    marker.push('^');
+                }
+                println!("{}", marker);
+            }
+        }
+    }
+}
+
+
+#[derive(Debug)]
+pub enum TokenKind{
     Num(i64),
     Reserved(String),
     Eof,
 }
+
+type Token = Span<TokenKind>;
 
 type TokenContainer = Vec<Token>;
 
@@ -31,11 +68,12 @@ pub fn tokenize(s: &[u8]) -> TokenContainer{
                 cursor += 1;    
             }
             b'+' | b'-' =>{
-                vec.push(Token::Reserved((s[cursor] as char).to_string()));
+                vec.push(Token{item: TokenKind::Reserved((s[cursor] as char).to_string()), pos: cursor, len: 1});
                 cursor += 1;
             }
             c if c.is_ascii_digit() =>{
-                vec.push(Token::Num(parse_next_number(s, &mut cursor)));
+                let pos = cursor;
+                vec.push(Token{item: TokenKind::Num(parse_next_number(s, &mut cursor)), pos, len: cursor - pos});
             }
             _ =>{
                 panic!("unexpected token");
@@ -46,12 +84,13 @@ pub fn tokenize(s: &[u8]) -> TokenContainer{
 }
 
 pub fn next_num<'a>(tokens: &'a [Token], index: &mut usize) -> Result<i64, NextTokenError<'a>>{
-    let result = match &tokens[*index]{
-        Token::Num(i) => {
+    let token = &tokens[*index];
+    let result = match &token.item{
+        TokenKind::Num(i) => {
             Ok(*i)
         }
-        c => {
-            Err(NextTokenError::WrongType(c))
+        _ => {
+            Err(NextTokenError::WrongType{expected: STR_NUMBER, found: token})
         }
     };
     *index += 1;
@@ -59,12 +98,13 @@ pub fn next_num<'a>(tokens: &'a [Token], index: &mut usize) -> Result<i64, NextT
 }
 
 pub fn next_reserve<'a>(tokens: &'a [Token], index: &mut usize) -> Result<&'a str, NextTokenError<'a>>{
-    let result: Result<&'a str, NextTokenError<'a>> = match &tokens[*index]{
-        Token::Reserved(s) => {
-            Ok(&s)
+    let token = &tokens[*index];
+    let result = match &token.item{
+        TokenKind::Reserved(s) => {
+            Ok(s.as_str())
         }
-        c => {
-            Err(NextTokenError::WrongType(c))
+        _ => {
+            Err(NextTokenError::WrongType{expected: STR_RESERVE, found: token})
         }
     };
     *index += 1;

@@ -1,4 +1,4 @@
-use std::env::{self};
+use std::{env::{self}, process};
 use chibicc_for_rust::tokenizer::*;
 
 
@@ -10,17 +10,21 @@ fn main() {
     println!(".globl main\n");
     println!("main:\n");
     let mut index = 0;
-    let num = next_num(&tokens, &mut index).expect("first token must be number");
+    let num = next_num(&tokens, &mut index)
+        .unwrap_or_else(|err| {err.error_print(input_str); process::exit(1)});
     println!("  mov rax, {}\n", num);
     while index < tokens.len()  {
-        let char = next_reserve(&tokens, &mut index).expect("next token must be operator");
+        let char = next_reserve(&tokens, &mut index)
+            .unwrap_or_else(|err| {err.error_print(input_str); process::exit(1)});
         match char{
             "+" => {
-                let num = next_num(&tokens, &mut index).expect("next token must be number");
+                let num = next_num(&tokens, &mut index)
+                    .unwrap_or_else(|err| {err.error_print(input_str); process::exit(1)});
                 println!("  add rax, {}\n", num);
             }
             "-" => {
-                let num = next_num(&tokens, &mut index).expect("next token must be number");
+                let num = next_num(&tokens, &mut index)
+                    .unwrap_or_else(|err| {err.error_print(input_str); process::exit(1)});
                 println!("  sub rax, {}\n", num);
             }
             _ => {
@@ -30,4 +34,6 @@ fn main() {
     }
     println!("  ret\n");
 }
+
+
 
