@@ -2,7 +2,7 @@
 
 pub fn compile_and_run(input: &str) -> i32 {
     let output = Command::new("cargo")
-        .args(&["run", input])
+        .args(&["run", "--", input])
         .output()
         .unwrap();
     let asm = String::from_utf8(output.stdout).unwrap();
@@ -53,4 +53,28 @@ fn test_division() {
 fn test_complex_expressions() {
     assert_eq!(compile_and_run("5*(9-6)"), 15);
     assert_eq!(compile_and_run("(3+5)/2"), 4);
+}
+
+#[test]
+fn test_unary_plus() {
+    assert_eq!(compile_and_run("+5"), 5);
+    assert_eq!(compile_and_run("+42"), 42);
+    assert_eq!(compile_and_run("0+ +10"), 10);  // 0 + (+10)
+}
+
+#[test]
+fn test_unary_minus() {   
+    assert_eq!(compile_and_run("10-5"), 5);
+    assert_eq!(compile_and_run("5+ -3"), 2);    // 5 + (-3)
+}
+
+#[test]
+fn test_unary_in_expressions() {
+    assert_eq!(compile_and_run("-5+10"), 5);    // (-5) + 10
+    assert_eq!(compile_and_run("10+ -5"), 5);   // 10 + (-5)
+}
+
+#[test]
+fn test_precedence_with_unary() {
+    assert_eq!(compile_and_run("-5*2+10"), 0);   // ((-5)*2) + 10 = -10 + 10 = 0
 }

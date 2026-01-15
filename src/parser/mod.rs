@@ -49,6 +49,21 @@ impl Parser{
         Ok((span, lit))
     }
 
+    fn parse_unary(&mut self) -> Expr{
+        let result;
+        let span = self.peek().span;
+        if self.eat(&TokenKind::Add){
+            result = Expr { kind: ExprKind::Unary(UnaryOpKind::Pos, Box::new(self.parse_primary())), span }
+        } 
+        else if self.eat(&TokenKind::Sub){
+            result = Expr { kind: ExprKind::Unary(UnaryOpKind::Neg, Box::new(self.parse_primary())), span }
+        } 
+        else {
+            result = self.parse_primary();    
+        }
+        result
+    }
+
     fn parse_primary(&mut self) -> Expr{
         if self.eat(&TokenKind::LParen){
             let result = self.parse_expr();
@@ -75,14 +90,14 @@ impl Parser{
     }
 
     fn parse_mul(&mut self) -> Expr{
-        let mut node = self.parse_primary();
+        let mut node = self.parse_unary();
         while self.index < self.tokens.len(){
             let span = self.peek().span;
             if self.eat(&TokenKind::Mul){
-                node = Expr{span, kind: ExprKind::Binary(BinaryOpKind::Mul, Box::new(node), Box::new(self.parse_primary()))}
+                node = Expr{span, kind: ExprKind::Binary(BinaryOpKind::Mul, Box::new(node), Box::new(self.parse_unary()))}
             }   
             else if self.eat(&TokenKind::Div){
-                node = Expr{span, kind: ExprKind::Binary(BinaryOpKind::Div, Box::new(node), Box::new(self.parse_primary()))}
+                node = Expr{span, kind: ExprKind::Binary(BinaryOpKind::Div, Box::new(node), Box::new(self.parse_unary()))}
             }   
             else{
                 break;

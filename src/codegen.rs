@@ -34,6 +34,23 @@ impl Expr{
                     } 
                 }
             }
+            ExprKind::Unary(op, operand) => {
+                operand.gen_asm();  // Generate code for operand (pushes result)
+                
+                match op {
+                    UnaryOpKind::Pos => {
+                        // Unary '+' does nothing - value already on stack
+                        // No code needed!
+                    }
+                    UnaryOpKind::Neg => {
+                        // Negate the value on top of stack
+                        println!("  pop rax");       // Get value from stack
+                        println!("  neg rax");       // Negate it (rax = -rax)
+                        println!("  push rax");      // Push result back
+                    }
+                }
+                return;
+            }
             ExprKind::Literal(text) =>{
                 println!("  push {}\n", text.symbol);
                 return;

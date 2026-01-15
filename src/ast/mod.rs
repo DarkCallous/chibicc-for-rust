@@ -14,9 +14,15 @@ pub enum BinaryOpKind{
     Div,
 }
 
+pub enum UnaryOpKind{
+    Pos,
+    Neg,
+}
+
 pub enum ExprKind{
     Literal(Lit), 
     Binary(BinaryOpKind, Box<Expr>, Box<Expr>),
+    Unary(UnaryOpKind, Box<Expr>),
     Error,
 }
 
