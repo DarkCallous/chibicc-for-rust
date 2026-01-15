@@ -8,4 +8,5 @@ pub mod error_handler;
 
 pub mod parser;
 
+pub mod codegen;
 pub mod assembler;

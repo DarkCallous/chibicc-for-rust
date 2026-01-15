@@ -1,6 +1,6 @@
 ﻿use std::{process::Command, fs};
 
-fn compile_and_run(input: &str) -> i32 {
+pub fn compile_and_run(input: &str) -> i32 {
     let output = Command::new("cargo")
         .args(&["run", input])
         .output()
