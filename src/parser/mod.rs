@@ -1,6 +1,5 @@
 ﻿pub mod helper;
 
-use crate::error_handler;
 use crate::tokenizer::*;
 use crate::ast::*;
 use crate::error_handler::*;
@@ -38,7 +37,12 @@ impl Parser{
     fn parse_lit_num<'a>(&'a mut self) -> Result<(Span, Lit), NextTokenError> {
         let (span, lit) = match &self.peek().kind {
             TokenKind::Literal(i) if i.kind == LitKind::Integer => (self.peek().span, i.clone()),
-            _ => return Err(NextTokenError::WrongType{expected: STR_NUMBER, found: (self.peek()).clone()}),
+            _ => {
+                let e: Result<(Span, Lit), NextTokenError> = 
+                    Err(NextTokenError::WrongType{expected: STR_NUMBER, found: (self.peek()).clone()});
+                self.bump();
+                return e;
+            }
         };
         
         self.bump();
@@ -47,7 +51,7 @@ impl Parser{
 
     fn parse_primary(&mut self) -> Expr{
         if self.eat(&TokenKind::LParen){
-            let result = self.parse_primary();
+            let result = self.parse_expr();
             self.eat(&TokenKind::RParen);
             return result;
         }

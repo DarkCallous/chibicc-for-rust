@@ -1,6 +1,7 @@
 use std::{env::{self}};
 use chibicc_for_rust::tokenizer::*;
 use chibicc_for_rust::parser::*;
+use chibicc_for_rust::ast::*;
 
 fn main() {
     let cmds: Vec<String> = env::args().collect();
@@ -15,10 +16,44 @@ fn main() {
         errors: vec![],
     };
     let ast = parser.parse_expr();
+    gen_asm(ast);
+    println!("  pop rax\n");
+    println!("  ret\n");
     for e in parser.errors{
         e.error_print(input_str);
     }
-    println!("ast gen");
+}
+
+fn gen_asm(ast: Expr){
+    match ast.kind{
+        ExprKind::Binary(ops, lhs, rhs) => {
+            gen_asm(*lhs);
+            gen_asm(*rhs);
+            println!("  pop rdi\n");
+            println!("  pop rax\n");
+            match ops {
+                BinaryOpKind::Add => {
+                    println!("  add rax, rdi\n");
+                }
+                BinaryOpKind::Sub => {
+                    println!("  sub rax, rdi\n");
+                }
+                BinaryOpKind::Mul =>{
+                    println!("  imul rax, rdi\n");
+                } 
+                BinaryOpKind::Div =>{
+                    println!("  cqo\n");
+                    println!("  idiv rdi\n");
+                } 
+            }
+        }
+        ExprKind::Literal(text) =>{
+            println!("  push {}\n", text.symbol);
+            return;
+        }
+        ExprKind::Error => {return}
+    };
+    println!("  push rax\n");
 }
 
 
