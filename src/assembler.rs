@@ -78,3 +78,8 @@ fn test_unary_in_expressions() {
 fn test_precedence_with_unary() {
     assert_eq!(compile_and_run("-5*2+10"), 0);   // ((-5)*2) + 10 = -10 + 10 = 0
 }
+
+#[test]
+fn test_equality_precedence_with_unary() {
+    assert_eq!(compile_and_run("-5*2+10 != 0"), 0);   // ((-5)*2) + 10 = -10 + 10 = 0
+}

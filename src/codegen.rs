@@ -19,6 +19,32 @@ impl Expr{
                 println!("  pop rdi\n");
                 println!("  pop rax\n");
                 match ops {
+                    cmp @ (BinaryOpKind::EqEq | BinaryOpKind::Ne | BinaryOpKind::Ge | 
+           BinaryOpKind::Gt | BinaryOpKind::Le | BinaryOpKind::Lt) =>{
+                        println!("  cmp rax, rdi\n");
+                        match cmp{
+                            BinaryOpKind::EqEq =>{
+                                println!("  sete al\n");
+                            }
+                            BinaryOpKind::Ne =>{
+                                println!("  setne al\n");
+                            }
+                            BinaryOpKind::Ge =>{
+                                println!("  setge al\n");
+                            }
+                            BinaryOpKind::Gt =>{
+                                println!("  setg al\n");
+                            }
+                            BinaryOpKind::Le =>{
+                                println!("  setle al\n");
+                            }
+                            BinaryOpKind::Lt =>{
+                                println!("  setl al\n");
+                            }
+                            _ => unreachable!()
+                        }
+                        println!("  movzx rax, al\n");
+                    }
                     BinaryOpKind::Add => {
                         println!("  add rax, rdi\n");
                     }

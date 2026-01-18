@@ -1,4 +1,6 @@
-﻿use crate::span::*;
+﻿use core::panic;
+
+use crate::span::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LitKind{
@@ -21,6 +23,12 @@ pub enum TokenKind{
     Div,
     LParen,
     RParen,
+    EqEq,
+    Ne,
+    Ge,
+    Gt,
+    Le,
+    Lt,
     Reserved(String),
     Eof,
 }
@@ -49,6 +57,64 @@ pub fn tokenize(s: &[u8]) -> TokenContainer{
         match s[cursor]{
             c if c.is_ascii_whitespace() =>{
                 cursor += 1;    
+            }
+            b'!'=>{
+                match s[cursor + 1]{
+                    b'='=>{
+                        vec.push(Token{
+                            kind: TokenKind::Ne, 
+                            span: Span{pos: cursor, len: 2}});
+                        cursor += 2;
+                    }
+                    _ =>{
+                        panic!("Not Supported Operator!")
+                    }
+                }
+            }
+            b'='=>{
+                match s[cursor + 1]{
+                    b'='=>{
+                        vec.push(Token{
+                            kind: TokenKind::EqEq, 
+                            span: Span{pos: cursor, len: 2}});
+                        cursor += 2;
+                    }
+                    _ =>{
+                        panic!("Not Supported Operator!")
+                    }
+                }
+            }
+            b'>'=>{
+                match s[cursor + 1]{
+                    b'='=>{
+                        vec.push(Token{
+                            kind: TokenKind::Ge, 
+                            span: Span{pos: cursor, len: 2}});
+                        cursor += 2;
+                    }
+                    _ =>{
+                        vec.push(Token{
+                            kind: TokenKind::Gt, 
+                            span: Span{pos: cursor, len: 1}});
+                        cursor += 1;
+                    }
+                }
+            }
+            b'<'=>{
+                match s[cursor + 1]{
+                    b'='=>{
+                        vec.push(Token{
+                            kind: TokenKind::Le, 
+                            span: Span{pos: cursor, len: 2}});
+                        cursor += 2;
+                    }
+                    _ =>{
+                        vec.push(Token{
+                            kind: TokenKind::Lt, 
+                            span: Span{pos: cursor, len: 1}});
+                        cursor += 1;
+                    }
+                }
             }
             b'+'=>{
                 vec.push(Token{

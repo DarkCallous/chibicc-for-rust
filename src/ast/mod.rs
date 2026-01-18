@@ -12,6 +12,12 @@ pub enum BinaryOpKind{
     Sub,
     Mul,
     Div,
+    EqEq,
+    Ne,
+    Le,
+    Lt,
+    Ge,
+    Gt,
 }
 
 pub enum UnaryOpKind{
@@ -29,6 +35,16 @@ pub enum ExprKind{
 pub struct Expr{
     pub kind: ExprKind,
     pub span: Span,
+}
+
+impl BinaryOpKind{
+    pub fn is_compartor(&self)->bool{
+        use BinaryOpKind::*;
+        match &self{
+            Ne | EqEq | Ge | Gt | Le | Lt => true,
+            _ => false
+        }
+    }
 }
 
 

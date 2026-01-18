@@ -1,6 +1,5 @@
 ﻿pub mod helper;
 
-use crate::tokenizer::*;
 use crate::ast::*;
 use crate::error_handler::*;
 use crate::span::*;
@@ -34,12 +33,12 @@ impl Parser{
         &self.tokens[self.index]
     }
 
-    fn parse_lit_num<'a>(&'a mut self) -> Result<(Span, Lit), NextTokenError> {
+    fn parse_lit_num(&mut self) -> Result<(Span, Lit), NextTokenError> {
         let (span, lit) = match &self.peek().kind {
             TokenKind::Literal(i) if i.kind == LitKind::Integer => (self.peek().span, i.clone()),
             _ => {
                 let e: Result<(Span, Lit), NextTokenError> = 
-                    Err(NextTokenError::WrongType{expected: STR_NUMBER, found: (self.peek()).clone()});
+                    Err(NextTokenError::WrongType{expected: STR_NUMBER, found: self.peek().clone()});
                 self.bump();
                 return e;
             }
@@ -106,7 +105,7 @@ impl Parser{
         node
     }
 
-    pub fn parse_expr(&mut self) -> Expr{
+    pub fn parse_add(&mut self) -> Expr{
         let mut node = self.parse_mul();
         while self.index < self.tokens.len(){
             let span = self.peek().span;
@@ -121,5 +120,49 @@ impl Parser{
             }
         } 
         node
+    }
+
+    pub fn parse_rational(&mut self)->Expr{
+        let mut node = self.parse_add();
+        while self.index < self.tokens.len(){
+            let span = self.peek().span;
+            if self.eat(&TokenKind::Ge){
+                node = Expr{span, kind: ExprKind::Binary(BinaryOpKind::Ge, Box::new(node), Box::new(self.parse_add()))}
+            }   
+            else if self.eat(&TokenKind::Gt){
+                node = Expr{span, kind: ExprKind::Binary(BinaryOpKind::Gt, Box::new(node), Box::new(self.parse_add()))}
+            } 
+            else if self.eat(&TokenKind::Le){
+                node = Expr{span, kind: ExprKind::Binary(BinaryOpKind::Le, Box::new(node), Box::new(self.parse_add()))}
+            } 
+            else if self.eat(&TokenKind::Lt){
+                node = Expr{span, kind: ExprKind::Binary(BinaryOpKind::Lt, Box::new(node), Box::new(self.parse_add()))}
+            }   
+            else{
+                break;
+            }
+        } 
+        node
+    }
+
+    pub fn parse_equality(&mut self)->Expr{
+        let mut node = self.parse_rational();
+        while self.index < self.tokens.len(){
+            let span = self.peek().span;
+            if self.eat(&TokenKind::EqEq){
+                node = Expr{span, kind: ExprKind::Binary(BinaryOpKind::EqEq, Box::new(node), Box::new(self.parse_rational()))}
+            }   
+            else if self.eat(&TokenKind::Ne){
+                node = Expr{span, kind: ExprKind::Binary(BinaryOpKind::Ne, Box::new(node), Box::new(self.parse_rational()))}
+            }   
+            else{
+                break;
+            }
+        } 
+        node
+    }
+
+    pub fn parse_expr(&mut self)->Expr{
+        self.parse_equality()
     }
 }
