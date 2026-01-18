@@ -1,5 +1,6 @@
 ﻿pub mod helper;
 
+use core::panic;
 use crate::ast::*;
 use crate::error_handler::*;
 use crate::span::*;
@@ -8,10 +9,14 @@ pub struct Parser{
     pub tokens: TokenContainer,
     pub index: usize,
     pub errors: Vec<NextTokenError>,
+    pub locals: Vec<Symbol>,
 }
 
 impl Parser{
     pub fn expect(&self, kind: &TokenKind) -> bool {
+        if self.index >= self.tokens.len(){
+            return false
+        }
         &self.tokens[self.index].kind == kind
     }
 
@@ -63,11 +68,28 @@ impl Parser{
         result
     }
 
+    fn parse_ident(&mut self) -> Option<Expr>{
+        let span = self.peek().span;
+        let result = if let TokenKind::Ident(s) = &self.peek().kind{
+            Some(Expr { kind: ExprKind::Var(s.clone()), span})
+        } else{
+            None
+        };
+        if let Some(Expr{kind: ExprKind::Var(sym), span: _}) = &result{
+            self.locals.push(sym.clone());
+            self.bump();
+        }
+        result
+    }
+
     fn parse_primary(&mut self) -> Expr{
         if self.eat(&TokenKind::LParen){
             let result = self.parse_expr();
             self.eat(&TokenKind::RParen);
             return result;
+        }
+        if let Some(sym) = self.parse_ident(){
+            return sym;
         }
         let ex = self.parse_lit_num();
         match ex{
@@ -162,7 +184,35 @@ impl Parser{
         node
     }
 
+    pub fn parse_assign(&mut self)->Expr{
+        let mut node = self.parse_equality();
+        
+        if self.eat(&TokenKind::Eq){
+            let span = self.peek().span;
+            node = Expr { span, kind: ExprKind::Assign(Box::new(node), Box::new(self.parse_assign())) };
+        }
+        node
+    }
+
     pub fn parse_expr(&mut self)->Expr{
-        self.parse_equality()
+        self.parse_assign()
+    }
+
+    pub fn parse_stmt(&mut self)->Stmt{
+        let stmt = Stmt::ExprStmt(Box::new(self.parse_expr()));
+        if !self.eat(&TokenKind::Semi){
+            panic!("missing ;");
+        }
+        stmt
+    }
+
+    pub fn parse_crate(&mut self)->Crate{
+        let mut stmts = Vec::new();
+        while self.index < self.tokens.len(){
+            stmts.push(self.parse_stmt());
+        }
+        Crate{
+            stmts
+        }
     }
 }

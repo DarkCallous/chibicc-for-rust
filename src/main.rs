@@ -12,9 +12,10 @@ fn main() {
         tokens,
         index: 0,
         errors: vec![],
+        locals: vec![],
     };
-    let ast = parser.parse_expr();
-    gen_asm(ast);
+    let ast = parser.parse_crate();
+    gen_asm(ast, &parser.locals);
     for e in parser.errors{
         e.error_print(input_str);
     }

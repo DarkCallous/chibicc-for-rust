@@ -8,6 +8,8 @@ pub enum LitKind{
     Str,
 }
 
+pub type Symbol = String;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lit{
     pub kind: LitKind,
@@ -17,18 +19,21 @@ pub struct Lit{
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenKind{
     Literal(Lit),
+    Ident(Symbol),
     Add,
     Sub,
     Mul,
     Div,
     LParen,
     RParen,
+    Eq,
     EqEq,
     Ne,
     Ge,
     Gt,
     Le,
     Lt,
+    Semi,
     Reserved(String),
     Eof,
 }
@@ -45,6 +50,15 @@ pub fn parse_next_number(s: &[u8], cursor: &mut usize) -> String{
     let start = *cursor;
     while let Some(c) = s.get(*cursor){
         if !c.is_ascii_digit() {break;}
+        *cursor += 1;
+    }
+    String::from_utf8(s[start..*cursor].to_vec()).unwrap()
+}
+
+pub fn parse_next_ident(s: &[u8], cursor: &mut usize) -> String{
+    let start = *cursor;
+    while let Some(c) = s.get(*cursor){
+        if !(c.is_ascii_digit() | c.is_ascii_alphabetic()) {break;}
         *cursor += 1;
     }
     String::from_utf8(s[start..*cursor].to_vec()).unwrap()
@@ -80,7 +94,10 @@ pub fn tokenize(s: &[u8]) -> TokenContainer{
                         cursor += 2;
                     }
                     _ =>{
-                        panic!("Not Supported Operator!")
+                        vec.push(Token{
+                            kind: TokenKind::Eq, 
+                            span: Span{pos: cursor, len: 1}});
+                        cursor += 1;
                     }
                 }
             }
@@ -151,6 +168,16 @@ pub fn tokenize(s: &[u8]) -> TokenContainer{
                             kind: TokenKind::RParen, 
                             span: Span{pos: cursor, len: 1}});
                 cursor += 1;
+            }
+            b';'=>{
+                vec.push(Token { kind: TokenKind::Semi, span: Span{pos: cursor, len: 1} });
+                cursor += 1;
+            }
+            ident if ident.is_ascii_alphabetic()=>{
+                let pos = cursor;
+                vec.push(Token{
+                    kind: TokenKind::Ident(parse_next_ident(s, &mut cursor)),
+                    span: Span{pos, len: cursor - pos}});
             }
             c if c.is_ascii_digit() =>{
                 let pos = cursor;

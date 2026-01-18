@@ -1,21 +1,48 @@
 ﻿use crate::ast::*;
 
-pub fn gen_asm(exp: Expr){
+pub fn gen_asm(crat: Crate, locals: &[String]){
     println!(".intel_syntax noprefix\n");
     println!(".globl main\n");
     println!("main:\n");
-    exp.gen_asm();
-    println!("  pop rax\n");
+    
+    println!("  push rbp\n");
+    println!("  mov rbp, rsp\n");
+    println!("  sub rsp, {}\n", locals.len() * 8);
+
+    for exp in crat.stmts{
+        match exp {
+            Stmt::ExprStmt(expr)=>{
+                expr.gen_asm(locals);
+            }
+            _=>{
+                panic!("not supported stmt type!");
+            }
+        }
+    }
+
+    println!("  mov rsp, rbp\n");
+    println!("  pop rbp\n");
     println!("  ret\n");
 }
 
+pub fn gen_var(var: &Expr, locals: &[String]){
+    if let ExprKind::Var(sym) = &var.kind{
+        println!("  mov rax, rbp\n");
+        let offset = 8*(locals.iter().position(|s| s == sym).unwrap() + 1);
+        println!("  sub rax, {}\n", offset);
+        println!("  push rax\n");
+    }
+    else {
+        unreachable!("should not call gen_var on non-LValue");
+    }
+}
 
 impl Expr{
-    fn gen_asm(self){
-        match self.kind{
+    fn gen_asm(&self, locals: &[String]){
+        match &self.kind{
             ExprKind::Binary(ops, lhs, rhs) => {
-                lhs.gen_asm();
-                rhs.gen_asm();
+                lhs.gen_asm(locals);
+                rhs.gen_asm(locals);
                 println!("  pop rdi\n");
                 println!("  pop rax\n");
                 match ops {
@@ -61,7 +88,7 @@ impl Expr{
                 }
             }
             ExprKind::Unary(op, operand) => {
-                operand.gen_asm();  // Generate code for operand (pushes result)
+                operand.gen_asm(locals);  // Generate code for operand (pushes result)
                 
                 match op {
                     UnaryOpKind::Pos => {
@@ -79,6 +106,22 @@ impl Expr{
             }
             ExprKind::Literal(text) =>{
                 println!("  push {}\n", text.symbol);
+                return;
+            }
+            ExprKind::Var(_) =>{
+                gen_var(&self, locals);
+                println!("  pop rax\n");
+                println!("  mov rax, [rax]\n");
+                println!("  push rax\n");
+                return;
+            }
+            ExprKind::Assign(lhs, rhs) => {
+                gen_var(lhs,locals);
+                rhs.as_ref().gen_asm(locals);
+                println!("  pop rdi\n");
+                println!("  pop rax\n");
+                println!("  mov [rax], rdi\n");
+                println!("  push rdi\n");
                 return;
             }
             ExprKind::Error => {return}

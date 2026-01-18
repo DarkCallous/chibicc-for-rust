@@ -1,10 +1,13 @@
 ﻿use crate::tokenizer::*;
 use crate::span::*;
 
-enum Stmt{
-    ExprStmt(),
-    Return(),
-    Block(Vec<Stmt>),
+pub struct Crate{
+    pub stmts: Vec<Stmt>,
+}
+
+pub enum Stmt{
+    ExprStmt(Box<Expr>),
+    Return(Box<Expr>),
 }
 
 pub enum BinaryOpKind{
@@ -29,6 +32,8 @@ pub enum ExprKind{
     Literal(Lit), 
     Binary(BinaryOpKind, Box<Expr>, Box<Expr>),
     Unary(UnaryOpKind, Box<Expr>),
+    Assign(Box<Expr>, Box<Expr>),
+    Var(Symbol),
     Error,
 }
 
