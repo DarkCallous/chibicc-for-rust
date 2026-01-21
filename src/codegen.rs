@@ -14,8 +14,13 @@ pub fn gen_asm(crat: Crate, locals: &[String]){
             Stmt::ExprStmt(expr)=>{
                 expr.gen_asm(locals);
             }
-            _=>{
-                panic!("not supported stmt type!");
+            Stmt::Return(expr)=>{
+                expr.gen_asm(locals);
+                println!("  pop rax\n");
+                println!("  mov rsp, rbp\n");
+                println!("  pop rbp\n");
+                println!("  ret\n");
+                return;
             }
         }
     }
@@ -97,9 +102,9 @@ impl Expr{
                     }
                     UnaryOpKind::Neg => {
                         // Negate the value on top of stack
-                        println!("  pop rax");       // Get value from stack
-                        println!("  neg rax");       // Negate it (rax = -rax)
-                        println!("  push rax");      // Push result back
+                        println!("  pop rax\n");       // Get value from stack
+                        println!("  neg rax\n");       // Negate it (rax = -rax)
+                        println!("  push rax\n");      // Push result back
                     }
                 }
                 return;

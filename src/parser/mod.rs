@@ -76,7 +76,9 @@ impl Parser{
             None
         };
         if let Some(Expr{kind: ExprKind::Var(sym), span: _}) = &result{
-            self.locals.push(sym.clone());
+            if !self.locals.contains(sym){
+                self.locals.push(sym.clone());
+            }
             self.bump();
         }
         result
@@ -199,7 +201,13 @@ impl Parser{
     }
 
     pub fn parse_stmt(&mut self)->Stmt{
-        let stmt = Stmt::ExprStmt(Box::new(self.parse_expr()));
+        let stmt =  if self.eat(&TokenKind::Keyword(KeywordKind::Return)){
+            Stmt::Return(Box::new(self.parse_expr()))
+        }
+        else{
+            Stmt::ExprStmt(Box::new(self.parse_expr()))
+        };
+        
         if !self.eat(&TokenKind::Semi){
             panic!("missing ;");
         }

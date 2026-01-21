@@ -16,8 +16,14 @@ pub struct Lit{
     pub symbol: String,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum KeywordKind{
+    Return,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenKind{
+    Keyword(KeywordKind),
     Literal(Lit),
     Ident(Symbol),
     Add,
@@ -175,8 +181,15 @@ pub fn tokenize(s: &[u8]) -> TokenContainer{
             }
             ident if ident.is_ascii_alphabetic()=>{
                 let pos = cursor;
+                let ident = parse_next_ident(s, &mut cursor);
+                let tk_kind = if ident == "return"{
+                    TokenKind::Keyword(KeywordKind::Return)
+                }
+                else {
+                    TokenKind::Ident(ident)
+                };
                 vec.push(Token{
-                    kind: TokenKind::Ident(parse_next_ident(s, &mut cursor)),
+                    kind: tk_kind,
                     span: Span{pos, len: cursor - pos}});
             }
             c if c.is_ascii_digit() =>{
