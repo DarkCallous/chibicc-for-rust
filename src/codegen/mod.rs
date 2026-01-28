@@ -1,5 +1,7 @@
 ﻿use crate::ast::*;
 
+mod context;
+
 pub fn gen_asm(crat: Crate, locals: &[String]){
     println!(".intel_syntax noprefix\n");
     println!(".globl main\n");
@@ -10,16 +12,8 @@ pub fn gen_asm(crat: Crate, locals: &[String]){
     println!("  sub rsp, {}\n", locals.len() * 8);
 
     for exp in crat.stmts{
-        match exp {
-            Stmt::ExprStmt(expr)=>{
-                expr.gen_asm(locals);
-            }
-            _=>{
-                panic!("not supported stmt type!");
-            }
-        }
+        exp.gen_asm(locals);
     }
-
     println!("  mov rsp, rbp\n");
     println!("  pop rbp\n");
     println!("  ret\n");
@@ -86,6 +80,7 @@ impl Expr{
                         println!("  idiv rdi\n");
                     } 
                 }
+                println!("  push rax");
             }
             ExprKind::Unary(op, operand) => {
                 operand.gen_asm(locals);  // Generate code for operand (pushes result)
@@ -126,6 +121,39 @@ impl Expr{
             }
             ExprKind::Error => {return}
         };
-        println!("  push rax\n");
+    }
+}
+
+impl Stmt{
+    fn gen_asm(&self, locals: &[String]){
+        match &self {
+            Stmt::ExprStmt(expr)=>{
+                expr.gen_asm(locals);
+            }
+            Stmt::Return(expr)=>{
+                expr.gen_asm(locals);
+                println!("  pop rax\n");
+                println!("  mov rsp, rbp\n");
+                println!("  pop rbp\n");
+                println!("  ret\n");
+                return
+            }
+            Stmt::If(condition, ops, else_ops)=>{
+                condition.gen_asm(locals);
+                let cnt = 0;
+                println!("  cmp $0, %%rax\n");
+                println!("  je .L.else.{}\n", cnt);
+                ops.gen_asm(locals);
+                println!("  jmp .L.end.{}\n", cnt);
+                println!(".L.else.{}:\n", cnt);
+                if let Some(else_ops) = &**else_ops{
+                    else_ops.gen_asm(locals);
+                }
+                println!(".L.end.{}:\n", cnt);
+                return;
+            }
+            Stmt::Null=>{}
+            _=>todo!()
+        }
     }
 }

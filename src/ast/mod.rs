@@ -8,6 +8,10 @@ pub struct Crate{
 pub enum Stmt{
     ExprStmt(Box<Expr>),
     Return(Box<Expr>),
+    If(Box<Expr>, Box<Stmt>, Box<Option<Stmt>>),
+    While(Box<Expr>, Box<Stmt>),
+    For(Box<Expr>, Box<Expr>, Box<Expr>, Box<Stmt>),
+    Null,
 }
 
 pub enum BinaryOpKind{

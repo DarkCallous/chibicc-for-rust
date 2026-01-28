@@ -175,8 +175,15 @@ pub fn tokenize(s: &[u8]) -> TokenContainer{
             }
             ident if ident.is_ascii_alphabetic()=>{
                 let pos = cursor;
+                let data = parse_next_ident(s, &mut cursor);
+                let kind = match data.as_str(){
+                    "return" => TokenKind::Reserved(data),
+                    "if" => TokenKind::Reserved(data),
+                    "else" => TokenKind::Reserved(data),
+                    _ => TokenKind::Ident(data)
+                };
                 vec.push(Token{
-                    kind: TokenKind::Ident(parse_next_ident(s, &mut cursor)),
+                    kind,
                     span: Span{pos, len: cursor - pos}});
             }
             c if c.is_ascii_digit() =>{

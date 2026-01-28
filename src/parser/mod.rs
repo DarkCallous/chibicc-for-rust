@@ -199,10 +199,40 @@ impl Parser{
     }
 
     pub fn parse_stmt(&mut self)->Stmt{
-        let stmt = Stmt::ExprStmt(Box::new(self.parse_expr()));
-        if !self.eat(&TokenKind::Semi){
-            panic!("missing ;");
+        let stmt = if self.eat(&TokenKind::Semi){
+            Stmt::Null
         }
+        else if self.eat(&TokenKind::Reserved(("return").to_string())){
+            let result = Stmt::Return(Box::new(self.parse_expr()));
+            if !self.eat(&TokenKind::Semi){
+                panic!("missing ;");
+            }
+            result
+        }
+        else if self.eat(&TokenKind::Reserved(("if").to_string())){
+            if !self.eat(&TokenKind::LParen){
+                panic!("missing (")
+            }
+            let condition = self.parse_expr();
+            if !self.eat(&TokenKind::RParen){
+                panic!("missing )")
+            }
+            let ops = self.parse_stmt();
+            let else_ops = if self.eat(&TokenKind::Reserved("else".to_string())){
+                Some(self.parse_stmt())
+            }
+            else{
+                None
+            };
+            Stmt::If(Box::new(condition), Box::new(ops), Box::new(else_ops))
+        }
+        else{
+            let result = Stmt::ExprStmt(Box::new(self.parse_expr()));
+            if !self.eat(&TokenKind::Semi){
+                panic!("missing ;");
+            }
+            result
+        };
         stmt
     }
 
