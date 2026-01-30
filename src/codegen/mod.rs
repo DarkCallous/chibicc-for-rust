@@ -92,9 +92,9 @@ impl Expr{
                     }
                     UnaryOpKind::Neg => {
                         // Negate the value on top of stack
-                        println!("  pop rax");       // Get value from stack
-                        println!("  neg rax");       // Negate it (rax = -rax)
-                        println!("  push rax");      // Push result back
+                        println!("  pop rax\n");       // Get value from stack
+                        println!("  neg rax\n");       // Negate it (rax = -rax)
+                        println!("  push rax\n");      // Push result back
                     }
                 }
                 return;

@@ -16,8 +16,14 @@ pub struct Lit{
     pub symbol: String,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum KeywordKind{
+    Return,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenKind{
+    Keyword(KeywordKind),
     Literal(Lit),
     Ident(Symbol),
     Add,

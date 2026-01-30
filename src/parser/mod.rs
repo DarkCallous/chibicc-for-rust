@@ -76,7 +76,9 @@ impl Parser{
             None
         };
         if let Some(Expr{kind: ExprKind::Var(sym), span: _}) = &result{
-            self.locals.push(sym.clone());
+            if !self.locals.contains(sym){
+                self.locals.push(sym.clone());
+            }
             self.bump();
         }
         result
