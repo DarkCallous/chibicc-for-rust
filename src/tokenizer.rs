@@ -26,6 +26,8 @@ pub enum TokenKind{
     Div,
     LParen,
     RParen,
+    LBrace,
+    RBrace,
     Eq,
     EqEq,
     Ne,
@@ -169,6 +171,18 @@ pub fn tokenize(s: &[u8]) -> TokenContainer{
                             span: Span{pos: cursor, len: 1}});
                 cursor += 1;
             }
+            b'{'=>{
+                vec.push(Token{
+                            kind: TokenKind::LBrace, 
+                            span: Span{pos: cursor, len: 1}});
+                cursor += 1;
+            }
+            b'}'=>{
+                vec.push(Token{
+                            kind: TokenKind::RBrace, 
+                            span: Span{pos: cursor, len: 1}});
+                cursor += 1;
+            }
             b';'=>{
                 vec.push(Token { kind: TokenKind::Semi, span: Span{pos: cursor, len: 1} });
                 cursor += 1;
@@ -177,9 +191,11 @@ pub fn tokenize(s: &[u8]) -> TokenContainer{
                 let pos = cursor;
                 let data = parse_next_ident(s, &mut cursor);
                 let kind = match data.as_str(){
-                    "return" => TokenKind::Reserved(data),
-                    "if" => TokenKind::Reserved(data),
-                    "else" => TokenKind::Reserved(data),
+                    "return" |
+                    "if" |
+                    "else" |
+                    "for" |
+                    "while" => TokenKind::Reserved(data),
                     _ => TokenKind::Ident(data)
                 };
                 vec.push(Token{

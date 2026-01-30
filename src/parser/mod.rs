@@ -198,9 +198,28 @@ impl Parser{
         self.parse_assign()
     }
 
+    pub fn parse_exprstmt(&mut self)->Option<Expr>{
+        if self.eat(&TokenKind::Semi){
+            return None;
+        }
+        let result = self.parse_expr();
+        if !self.eat(&TokenKind::Semi){
+            panic!("missing ;");
+        }
+        Some(result)
+    }
+
+    pub fn parse_compoundstmt(&mut self)->Stmt{
+        let mut stmts = Vec::new();
+        while !self.eat(&TokenKind::RBrace){
+            stmts.push(self.parse_stmt());
+        }
+        Stmt::Block(stmts)
+    }
+
     pub fn parse_stmt(&mut self)->Stmt{
-        let stmt = if self.eat(&TokenKind::Semi){
-            Stmt::Null
+        let stmt = if self.eat(&TokenKind::LBrace){
+            self.parse_compoundstmt()
         }
         else if self.eat(&TokenKind::Reserved(("return").to_string())){
             let result = Stmt::Return(Box::new(self.parse_expr()));
@@ -226,12 +245,29 @@ impl Parser{
             };
             Stmt::If(Box::new(condition), Box::new(ops), Box::new(else_ops))
         }
-        else{
-            let result = Stmt::ExprStmt(Box::new(self.parse_expr()));
-            if !self.eat(&TokenKind::Semi){
-                panic!("missing ;");
+        else if self.eat(&TokenKind::Reserved("for".to_string())){
+            if !self.eat(&TokenKind::LParen){
+                panic!("missing (")
             }
-            result
+            let ini = self.parse_exprstmt();
+            let cond = self.parse_exprstmt();
+            let incr = if !self.eat(&TokenKind::RParen){
+                let incr = self.parse_expr();
+                if !self.eat(&TokenKind::RParen){
+                    panic!("missing )")
+                }
+                Some(incr)
+            }
+            else {
+                None   
+            };
+            let ops = self.parse_stmt();
+            Stmt::For(Box::new(ini), Box::new(cond), Box::new(incr), Box::new(ops))
+        }
+        else{
+            self.parse_exprstmt()
+                .and_then(|expr| Some(Stmt::ExprStmt(Box::new(expr))))
+                .unwrap_or(Stmt::Null)
         };
         stmt
     }

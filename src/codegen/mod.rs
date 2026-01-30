@@ -80,7 +80,7 @@ impl Expr{
                         println!("  idiv rdi\n");
                     } 
                 }
-                println!("  push rax");
+                println!("  push rax\n");
             }
             ExprKind::Unary(op, operand) => {
                 operand.gen_asm(locals);  // Generate code for operand (pushes result)
@@ -127,8 +127,14 @@ impl Expr{
 impl Stmt{
     fn gen_asm(&self, locals: &[String]){
         match &self {
+            Stmt::Block(stmts)=>{
+                for stmt in stmts{
+                    stmt.gen_asm(locals);
+                }
+            }
             Stmt::ExprStmt(expr)=>{
                 expr.gen_asm(locals);
+                println!("  pop rax\n");
             }
             Stmt::Return(expr)=>{
                 expr.gen_asm(locals);
@@ -141,7 +147,7 @@ impl Stmt{
             Stmt::If(condition, ops, else_ops)=>{
                 condition.gen_asm(locals);
                 let cnt = 0;
-                println!("  cmp $0, %%rax\n");
+                println!("  cmp rax, 0\n");
                 println!("  je .L.else.{}\n", cnt);
                 ops.gen_asm(locals);
                 println!("  jmp .L.end.{}\n", cnt);
@@ -149,6 +155,25 @@ impl Stmt{
                 if let Some(else_ops) = &**else_ops{
                     else_ops.gen_asm(locals);
                 }
+                println!(".L.end.{}:\n", cnt);
+                return;
+            }
+            Stmt::For(init, cond, incr, ops)=>{
+                let cnt = 0;
+                if let Some(expr) = &**init{
+                    expr.gen_asm(locals);
+                }
+                println!(".L.begin.{}:\n", cnt);
+                if let Some(expr) = &**cond{
+                    expr.gen_asm(locals);
+                    println!("  cmp rax, 0\n");
+                    println!("  je  .L.end.{}\n", cnt);
+                }
+                ops.gen_asm(locals);
+                if let Some(expr) = &**incr{
+                    expr.gen_asm(locals);
+                }
+                println!("  jmp .L.begin.{}\n", cnt);
                 println!(".L.end.{}:\n", cnt);
                 return;
             }
