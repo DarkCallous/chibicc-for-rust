@@ -15,6 +15,7 @@ pub fn gen_asm(crat: Crate, locals: &[String]){
     for exp in crat.stmts{
         exp.gen_asm(locals, &mut crate_context);
     }
+    println!(".L.return:\n");
     println!("  mov rsp, rbp\n");
     println!("  pop rbp\n");
     println!("  ret\n");
@@ -22,10 +23,8 @@ pub fn gen_asm(crat: Crate, locals: &[String]){
 
 pub fn gen_var(var: &Expr, locals: &[String]){
     if let ExprKind::Var(sym) = &var.kind{
-        println!("  mov rax, rbp\n");
         let offset = 8*(locals.iter().position(|s| s == sym).unwrap() + 1);
-        println!("  sub rax, {}\n", offset);
-        println!("  push rax\n");
+        println!("  lea rax, [rbp - {offset}]\n");
     }
     else {
         unreachable!("should not call gen_var on non-LValue");
@@ -36,10 +35,10 @@ impl Expr{
     fn gen_asm(&self, locals: &[String]){
         match &self.kind{
             ExprKind::Binary(ops, lhs, rhs) => {
-                lhs.gen_asm(locals);
                 rhs.gen_asm(locals);
+                println!("  push rax\n");
+                lhs.gen_asm(locals);
                 println!("  pop rdi\n");
-                println!("  pop rax\n");
                 match ops {
                     cmp @ (BinaryOpKind::EqEq | BinaryOpKind::Ne | BinaryOpKind::Ge | 
            BinaryOpKind::Gt | BinaryOpKind::Le | BinaryOpKind::Lt) =>{
@@ -81,7 +80,6 @@ impl Expr{
                         println!("  idiv rdi\n");
                     } 
                 }
-                println!("  push rax\n");
             }
             ExprKind::Unary(op, operand) => {
                 operand.gen_asm(locals);  // Generate code for operand (pushes result)
@@ -93,31 +91,26 @@ impl Expr{
                     }
                     UnaryOpKind::Neg => {
                         // Negate the value on top of stack
-                        println!("  pop rax\n");       // Get value from stack
                         println!("  neg rax\n");       // Negate it (rax = -rax)
-                        println!("  push rax\n");      // Push result back
                     }
                 }
                 return;
             }
             ExprKind::Literal(text) =>{
-                println!("  push {}\n", text.symbol);
+                println!("  mov rax, {}\n", text.symbol);
                 return;
             }
             ExprKind::Var(_) =>{
                 gen_var(&self, locals);
-                println!("  pop rax\n");
                 println!("  mov rax, [rax]\n");
-                println!("  push rax\n");
                 return;
             }
             ExprKind::Assign(lhs, rhs) => {
                 gen_var(lhs,locals);
+                println!("  push rax\n");
                 rhs.as_ref().gen_asm(locals);
                 println!("  pop rdi\n");
-                println!("  pop rax\n");
-                println!("  mov [rax], rdi\n");
-                println!("  push rdi\n");
+                println!("  mov [rdi], rax\n");
                 return;
             }
             ExprKind::Error => {return}
@@ -135,15 +128,11 @@ impl Stmt{
             }
             Stmt::ExprStmt(expr)=>{
                 expr.gen_asm(locals);
-                println!("  pop rax\n");
             }
             Stmt::Return(expr)=>{
                 expr.gen_asm(locals);
-                println!("  pop rax\n");
-                println!("  mov rsp, rbp\n");
-                println!("  pop rbp\n");
-                println!("  ret\n");
-                return
+                println!("  jmp .L.return\n");
+                return;
             }
             Stmt::If(condition, ops, else_ops)=>{
                 condition.gen_asm(locals);
@@ -190,7 +179,6 @@ impl Stmt{
                 return;
             }
             Stmt::Null=>{}
-            _=>todo!()
         }
     }
 }
