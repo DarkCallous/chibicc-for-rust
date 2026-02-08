@@ -13,11 +13,27 @@ pub struct Parser{
 }
 
 impl Parser{
+    fn peek(&self) -> &Token {
+        &self.tokens[self.index]
+    }
+
     pub fn expect(&self, kind: &TokenKind) -> bool {
         if self.index >= self.tokens.len(){
             return false
         }
-        &self.tokens[self.index].kind == kind
+        &self.peek().kind == kind
+    }
+
+    pub fn expect_and_eat(&mut self, kind: &TokenKind) -> bool {
+        let same = self.expect(&kind);
+        if same{
+            self.bump();
+        }
+        else{
+            let e = NextTokenError::ExpectedToken { expected: kind.clone(), found: self.peek().clone() };
+            self.errors.push(e);
+        }
+        same
     }
 
     pub fn bump(&mut self){
@@ -34,10 +50,6 @@ impl Parser{
 }
 
 impl Parser{
-    fn peek(&self) -> &Token {
-        &self.tokens[self.index]
-    }
-
     fn parse_lit_num(&mut self) -> Result<(Span, Lit), NextTokenError> {
         let (span, lit) = match &self.peek().kind {
             TokenKind::Literal(i) if i.kind == LitKind::Integer => (self.peek().span, i.clone()),
@@ -87,8 +99,11 @@ impl Parser{
     fn parse_primary(&mut self) -> Expr{
         if self.eat(&TokenKind::LParen){
             let result = self.parse_expr();
-            self.eat(&TokenKind::RParen);
-            return result;
+            return if !self.expect_and_eat(&TokenKind::RParen){
+                Expr{kind: ExprKind::Error, span: self.peek().span}
+            }else{
+                result
+            }
         }
         if let Some(sym) = self.parse_ident(){
             return sym;
@@ -100,14 +115,9 @@ impl Parser{
                 Expr{kind: ExprKind::Literal(kind), span}
             }
             Err(e) => {
-                let span = match &e {
-                    NextTokenError::WrongType { found, .. } => found.span,
-                };
+                let error_node = e.gen_error_expr();
                 self.errors.push(e);
-                Expr {
-                    kind: ExprKind::Error,
-                    span,
-                }
+                error_node
             }
         }
     }
@@ -205,10 +215,12 @@ impl Parser{
             return None;
         }
         let result = self.parse_expr();
-        if !self.eat(&TokenKind::Semi){
-            panic!("missing ;");
-        }
-        Some(result)
+        return Some(
+            if !self.expect_and_eat(&TokenKind::Semi){
+                Expr{ kind: ExprKind::Error, span: self.peek().span}
+            }else{
+                result
+            })
     }
 
     pub fn parse_compoundstmt(&mut self)->Stmt{
@@ -223,14 +235,14 @@ impl Parser{
         let stmt = if self.eat(&TokenKind::LBrace){
             self.parse_compoundstmt()
         }
-        else if self.eat(&TokenKind::Reserved(("return").to_string())){
+        else if self.eat(&TokenKind::Keyword(KeywordKind::Return)){
             let result = Stmt::Return(Box::new(self.parse_expr()));
             if !self.eat(&TokenKind::Semi){
                 panic!("missing ;");
             }
             result
         }
-        else if self.eat(&TokenKind::Reserved(("if").to_string())){
+        else if self.eat(&TokenKind::Keyword(KeywordKind::If)){
             if !self.eat(&TokenKind::LParen){
                 panic!("missing (")
             }
@@ -239,7 +251,7 @@ impl Parser{
                 panic!("missing )")
             }
             let ops = self.parse_stmt();
-            let else_ops = if self.eat(&TokenKind::Reserved("else".to_string())){
+            let else_ops = if self.eat(&&TokenKind::Keyword(KeywordKind::Else)){
                 Some(self.parse_stmt())
             }
             else{
@@ -247,7 +259,18 @@ impl Parser{
             };
             Stmt::If(Box::new(condition), Box::new(ops), Box::new(else_ops))
         }
-        else if self.eat(&TokenKind::Reserved("for".to_string())){
+        else if self.eat(&TokenKind::Keyword(KeywordKind::While)){
+            if !self.eat(&TokenKind::LParen){
+                panic!("missing (")
+            }
+            let condition = self.parse_expr();
+            if !self.eat(&TokenKind::RParen){
+                panic!("missing )")
+            }
+            let ops = self.parse_stmt();
+            Stmt::While(Box::new(condition), Box::new(ops))
+        }
+        else if self.eat(&TokenKind::Keyword(KeywordKind::For)){
             if !self.eat(&TokenKind::LParen){
                 panic!("missing (")
             }

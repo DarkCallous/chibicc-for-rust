@@ -1,8 +1,9 @@
-﻿use crate::ast::*;
+﻿use crate::{ast::*, codegen::context::ProgContext};
 
 mod context;
 
 pub fn gen_asm(crat: Crate, locals: &[String]){
+    let mut crate_context = ProgContext::new();
     println!(".intel_syntax noprefix\n");
     println!(".globl main\n");
     println!("main:\n");
@@ -12,7 +13,7 @@ pub fn gen_asm(crat: Crate, locals: &[String]){
     println!("  sub rsp, {}\n", locals.len() * 8);
 
     for exp in crat.stmts{
-        exp.gen_asm(locals);
+        exp.gen_asm(locals, &mut crate_context);
     }
     println!("  mov rsp, rbp\n");
     println!("  pop rbp\n");
@@ -125,11 +126,11 @@ impl Expr{
 }
 
 impl Stmt{
-    fn gen_asm(&self, locals: &[String]){
+    fn gen_asm(&self, locals: &[String], prog_context: &mut ProgContext){
         match &self {
             Stmt::Block(stmts)=>{
                 for stmt in stmts{
-                    stmt.gen_asm(locals);
+                    stmt.gen_asm(locals, prog_context);
                 }
             }
             Stmt::ExprStmt(expr)=>{
@@ -146,20 +147,20 @@ impl Stmt{
             }
             Stmt::If(condition, ops, else_ops)=>{
                 condition.gen_asm(locals);
-                let cnt = 0;
+                let cnt = prog_context.apply();
                 println!("  cmp rax, 0\n");
                 println!("  je .L.else.{}\n", cnt);
-                ops.gen_asm(locals);
+                ops.gen_asm(locals, prog_context);
                 println!("  jmp .L.end.{}\n", cnt);
                 println!(".L.else.{}:\n", cnt);
                 if let Some(else_ops) = &**else_ops{
-                    else_ops.gen_asm(locals);
+                    else_ops.gen_asm(locals, prog_context);
                 }
                 println!(".L.end.{}:\n", cnt);
                 return;
             }
             Stmt::For(init, cond, incr, ops)=>{
-                let cnt = 0;
+                let cnt = prog_context.apply();
                 if let Some(expr) = &**init{
                     expr.gen_asm(locals);
                 }
@@ -169,10 +170,21 @@ impl Stmt{
                     println!("  cmp rax, 0\n");
                     println!("  je  .L.end.{}\n", cnt);
                 }
-                ops.gen_asm(locals);
+                ops.gen_asm(locals, prog_context);
                 if let Some(expr) = &**incr{
                     expr.gen_asm(locals);
                 }
+                println!("  jmp .L.begin.{}\n", cnt);
+                println!(".L.end.{}:\n", cnt);
+                return;
+            }
+            Stmt::While(cond, ops)=>{
+                let cnt = prog_context.apply();
+                println!(".L.begin.{}:\n", cnt);     
+                cond.gen_asm(locals);
+                println!("  cmp rax, 0\n");
+                println!("  je  .L.end.{}\n", cnt);
+                ops.gen_asm(locals, prog_context);
                 println!("  jmp .L.begin.{}\n", cnt);
                 println!(".L.end.{}:\n", cnt);
                 return;

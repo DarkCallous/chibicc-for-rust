@@ -15,7 +15,9 @@ fn main() {
         locals: vec![],
     };
     let ast = parser.parse_crate();
-    gen_asm(ast, &parser.locals);
+    if parser.errors.is_empty(){
+        gen_asm(ast, &parser.locals);
+    }
     for e in parser.errors{
         e.error_print(input_str);
     }

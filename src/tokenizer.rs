@@ -19,6 +19,10 @@ pub struct Lit{
 #[derive(Debug, Clone, PartialEq)]
 pub enum KeywordKind{
     Return,
+    If,
+    Else,
+    While,
+    For,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -44,6 +48,19 @@ pub enum TokenKind{
     Semi,
     Reserved(String),
     Eof,
+}
+
+impl KeywordKind{
+    pub fn lex_keyword(token: &str) -> Option<KeywordKind>{
+        match token{
+            "return" => Some(KeywordKind::Return),
+            "if" => Some(KeywordKind::If),
+            "else" => Some(KeywordKind::Else),
+            "for" => Some(KeywordKind::For),
+            "while" => Some(KeywordKind::While),
+            _ => None
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -196,13 +213,10 @@ pub fn tokenize(s: &[u8]) -> TokenContainer{
             ident if ident.is_ascii_alphabetic()=>{
                 let pos = cursor;
                 let data = parse_next_ident(s, &mut cursor);
-                let kind = match data.as_str(){
-                    "return" |
-                    "if" |
-                    "else" |
-                    "for" |
-                    "while" => TokenKind::Reserved(data),
-                    _ => TokenKind::Ident(data)
+                let kind = if let Some(kw) = KeywordKind::lex_keyword(data.as_str()){
+                    TokenKind::Keyword(kw)
+                } else{
+                    TokenKind::Ident(data) 
                 };
                 vec.push(Token{
                     kind,
