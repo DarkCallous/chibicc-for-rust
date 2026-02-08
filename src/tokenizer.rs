@@ -89,6 +89,10 @@ pub fn parse_next_ident(s: &[u8], cursor: &mut usize) -> String{
     String::from_utf8(s[start..*cursor].to_vec()).unwrap()
 }
 
+fn look_ahead_is(s: &[u8], cursor: usize, expected: u8) -> bool {
+    s.get(cursor).copied() == Some(expected)
+}
+
 pub fn tokenize(s: &[u8]) -> TokenContainer{
     let mut vec = Vec::new();
     let mut cursor = 0;
@@ -98,64 +102,52 @@ pub fn tokenize(s: &[u8]) -> TokenContainer{
                 cursor += 1;    
             }
             b'!'=>{
-                match s[cursor + 1]{
-                    b'='=>{
-                        vec.push(Token{
-                            kind: TokenKind::Ne, 
-                            span: Span{pos: cursor, len: 2}});
-                        cursor += 2;
-                    }
-                    _ =>{
-                        panic!("Not Supported Operator!")
-                    }
+                if look_ahead_is(s, cursor + 1, b'='){
+                    vec.push(Token{
+                        kind: TokenKind::Ne, 
+                        span: Span{pos: cursor, len: 2}});
+                    cursor += 2;
+                } else {
+                    panic!("Not Supported Operator!")
                 }
             }
             b'='=>{
-                match s[cursor + 1]{
-                    b'='=>{
-                        vec.push(Token{
-                            kind: TokenKind::EqEq, 
-                            span: Span{pos: cursor, len: 2}});
-                        cursor += 2;
-                    }
-                    _ =>{
-                        vec.push(Token{
-                            kind: TokenKind::Eq, 
-                            span: Span{pos: cursor, len: 1}});
-                        cursor += 1;
-                    }
+                if look_ahead_is(s, cursor + 1, b'='){
+                    vec.push(Token{
+                        kind: TokenKind::EqEq, 
+                        span: Span{pos: cursor, len: 2}});
+                    cursor += 2;
+                } else {
+                    vec.push(Token{
+                        kind: TokenKind::Eq, 
+                        span: Span{pos: cursor, len: 1}});
+                    cursor += 1;
                 }
             }
             b'>'=>{
-                match s[cursor + 1]{
-                    b'='=>{
-                        vec.push(Token{
-                            kind: TokenKind::Ge, 
-                            span: Span{pos: cursor, len: 2}});
-                        cursor += 2;
-                    }
-                    _ =>{
-                        vec.push(Token{
-                            kind: TokenKind::Gt, 
-                            span: Span{pos: cursor, len: 1}});
-                        cursor += 1;
-                    }
+                if look_ahead_is(s, cursor + 1, b'='){
+                    vec.push(Token{
+                        kind: TokenKind::Ge, 
+                        span: Span{pos: cursor, len: 2}});
+                    cursor += 2;
+                } else {
+                    vec.push(Token{
+                        kind: TokenKind::Gt, 
+                        span: Span{pos: cursor, len: 1}});
+                    cursor += 1;
                 }
             }
             b'<'=>{
-                match s[cursor + 1]{
-                    b'='=>{
-                        vec.push(Token{
-                            kind: TokenKind::Le, 
-                            span: Span{pos: cursor, len: 2}});
-                        cursor += 2;
-                    }
-                    _ =>{
-                        vec.push(Token{
-                            kind: TokenKind::Lt, 
-                            span: Span{pos: cursor, len: 1}});
-                        cursor += 1;
-                    }
+                if look_ahead_is(s, cursor + 1, b'='){
+                    vec.push(Token{
+                        kind: TokenKind::Le, 
+                        span: Span{pos: cursor, len: 2}});
+                    cursor += 2;
+                } else {
+                    vec.push(Token{
+                        kind: TokenKind::Lt, 
+                        span: Span{pos: cursor, len: 1}});
+                    cursor += 1;
                 }
             }
             b'+'=>{
@@ -228,6 +220,9 @@ pub fn tokenize(s: &[u8]) -> TokenContainer{
                     kind: TokenKind::Literal(
                         Lit{kind: LitKind::Integer, symbol: parse_next_number(s, &mut cursor)}), 
                     span: Span{pos, len: cursor - pos}});
+            }
+            b'\n' =>{
+                cursor += 1;
             }
             _ =>{
                 panic!("unexpected token");

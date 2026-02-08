@@ -1,4 +1,5 @@
-﻿pub use crate::tokenizer::*;
+﻿use crate::span::source_map::SourceFile;
+pub use crate::tokenizer::*;
 pub use crate::ast::*;
 
 
@@ -18,16 +19,14 @@ pub enum NextTokenError{
 }
 
 impl NextTokenError{
-    pub fn error_print(&self, source: &str){
+    pub fn error_print(&self, source: &SourceFile){
          match self {
             NextTokenError::WrongType { expected, found } => {
-                let line_number = 1;
-                let col_number = found.span.pos + 1; // pos 从 0 开始，所以 +1
-
+                let (line, col) = source.lookup_line_column(found.span.pos);
                 // 打印行内容
                 println!("Error: expected {}, found {:?} at line {}, column {}",
-                         expected, found, line_number, col_number);
-                println!("{}", source);
+                         expected, found, line, col);
+                println!("{}", source.line_content(line));
 
                 // 打印箭头指示位置
                 let mut marker = String::new();
@@ -40,13 +39,11 @@ impl NextTokenError{
                 println!("{}", marker);
             }
             NextTokenError::ExpectedToken { expected, found }=> {
-                let line_number = 1;
-                let col_number = found.span.pos + 1; // pos 从 0 开始，所以 +1
-
+                let (line, col) = source.lookup_line_column(found.span.pos);
                 // 打印行内容
                 println!("Error: expected {:?}, found {:?} at line {}, column {}",
-                         expected, found, line_number, col_number);
-                println!("{}", source);
+                         expected, found, line, col);
+                println!("{}", source.line_content(line));
 
                 // 打印箭头指示位置
                 let mut marker = String::new();
