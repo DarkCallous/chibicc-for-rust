@@ -1,4 +1,14 @@
-﻿use std::{process::Command, fs};
+﻿use std::{fs::{self, remove_file}, process::Command};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static SEQ: AtomicU64 = AtomicU64::new(0);
+
+fn unique_base() -> String {
+    let pid = std::process::id();
+    let tid = format!("{:?}", std::thread::current().id());
+    let n = SEQ.fetch_add(1, Ordering::Relaxed);
+    format!("chibicc_{pid}_{tid}_{n}")
+}
 
 pub fn compile_and_run(input: &str) -> i32 {
     let output = Command::new("cargo")
@@ -6,15 +16,21 @@ pub fn compile_and_run(input: &str) -> i32 {
         .output()
         .unwrap();
     let asm = String::from_utf8(output.stdout).unwrap();
-    fs::write("tmp.s", asm).unwrap();
+    let dir = std::env::temp_dir();
+    let base = unique_base();
+    let obj_path = dir.join(format!("{base}.s"));
+    fs::write(obj_path.clone(), asm).unwrap();
     
+    let exe_path = dir.join(format!("{base}.exe"));
     // Use clang (LLVM's C compiler) to assemble and link
     Command::new("clang")
-        .args(&["-o", "D:\\tmp.exe", "tmp.s"])
+        .args(&["-o", exe_path.to_str().unwrap(), obj_path.to_str().unwrap()])
         .status()
         .unwrap();
     
-    let result = Command::new("D:\\tmp.exe").status().unwrap();
+    let result = Command::new(exe_path.clone()).status().unwrap();
+    let _ = remove_file(obj_path);
+    let _ = remove_file(exe_path);
     result.code().unwrap()
 }
  
