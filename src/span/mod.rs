@@ -1,4 +1,6 @@
-﻿#[derive(Clone, Debug, Copy, PartialEq)]
+﻿pub mod source_map;
+
+#[derive(Clone, Debug, Copy, PartialEq)]
 pub struct Span {
     pub pos: usize,   
     pub len: usize, 
