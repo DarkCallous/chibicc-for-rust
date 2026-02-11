@@ -1,4 +1,4 @@
-﻿use crate::span::*;
+use crate::span::*;
 use crate::tokenizer::*;
 
 pub struct Crate {
@@ -56,6 +56,6 @@ pub struct Expr {
 impl BinaryOpKind {
     pub fn is_compartor(&self) -> bool {
         use BinaryOpKind::*;
-        matches!(&self, Ne|EqEq|Ge|Gt|Le|Lt)
+        matches!(&self, Ne | EqEq | Ge | Gt | Le | Lt)
     }
 }

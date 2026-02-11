@@ -262,7 +262,7 @@ impl Parser {
     }
 
     pub fn parse_stmt(&mut self) -> Stmt {
-        let stmt = if self.eat(&TokenKind::LBrace) {
+        if self.eat(&TokenKind::LBrace) {
             self.parse_compoundstmt()
         } else if self.eat(&TokenKind::Keyword(KeywordKind::Return)) {
             let result = Stmt::Return(Box::new(self.parse_expr()));
@@ -316,8 +316,7 @@ impl Parser {
             self.parse_exprstmt()
                 .map(|expr| Stmt::ExprStmt(Box::new(expr)))
                 .unwrap_or(Stmt::Null)
-        };
-        stmt
+        }
     }
 
     pub fn parse_crate(&mut self) -> Crate {

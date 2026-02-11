@@ -19,7 +19,7 @@ fn main() {
 
     let ast = parser.parse_crate();
     if parser.errors.is_empty() {
-        gen_asm(ast, &parser.locals);
+        let _ = gen_asm(ast, &parser.locals);
     }
     for e in parser.errors {
         e.error_print(&source_file);
