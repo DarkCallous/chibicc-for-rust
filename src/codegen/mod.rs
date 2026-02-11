@@ -2,17 +2,17 @@
 
 mod context;
 
-pub fn gen_asm(crat: Crate, locals: &[String]){
+pub fn gen_asm(crat: Crate, locals: &[String]) {
     let mut crate_context = ProgContext::new();
     println!(".intel_syntax noprefix\n");
     println!(".globl main\n");
     println!("main:\n");
-    
+
     println!("  push rbp\n");
     println!("  mov rbp, rsp\n");
     println!("  sub rsp, {}\n", locals.len() * 8);
 
-    for exp in crat.stmts{
+    for exp in crat.stmts {
         exp.gen_asm(locals, &mut crate_context);
     }
     println!(".L.return:\n");
@@ -21,48 +21,51 @@ pub fn gen_asm(crat: Crate, locals: &[String]){
     println!("  ret\n");
 }
 
-pub fn gen_var(var: &Expr, locals: &[String]){
-    if let ExprKind::Var(sym) = &var.kind{
-        let offset = 8*(locals.iter().position(|s| s == sym).unwrap() + 1);
+pub fn gen_var(var: &Expr, locals: &[String]) {
+    if let ExprKind::Var(sym) = &var.kind {
+        let offset = 8 * (locals.iter().position(|s| s == sym).unwrap() + 1);
         println!("  lea rax, [rbp - {offset}]\n");
-    }
-    else {
+    } else {
         unreachable!("should not call gen_var on non-LValue");
     }
 }
 
-impl Expr{
-    fn gen_asm(&self, locals: &[String]){
-        match &self.kind{
+impl Expr {
+    fn gen_asm(&self, locals: &[String]) {
+        match &self.kind {
             ExprKind::Binary(ops, lhs, rhs) => {
                 rhs.gen_asm(locals);
                 println!("  push rax\n");
                 lhs.gen_asm(locals);
                 println!("  pop rdi\n");
                 match ops {
-                    cmp @ (BinaryOpKind::EqEq | BinaryOpKind::Ne | BinaryOpKind::Ge | 
-           BinaryOpKind::Gt | BinaryOpKind::Le | BinaryOpKind::Lt) =>{
+                    cmp @ (BinaryOpKind::EqEq
+                    | BinaryOpKind::Ne
+                    | BinaryOpKind::Ge
+                    | BinaryOpKind::Gt
+                    | BinaryOpKind::Le
+                    | BinaryOpKind::Lt) => {
                         println!("  cmp rax, rdi\n");
-                        match cmp{
-                            BinaryOpKind::EqEq =>{
+                        match cmp {
+                            BinaryOpKind::EqEq => {
                                 println!("  sete al\n");
                             }
-                            BinaryOpKind::Ne =>{
+                            BinaryOpKind::Ne => {
                                 println!("  setne al\n");
                             }
-                            BinaryOpKind::Ge =>{
+                            BinaryOpKind::Ge => {
                                 println!("  setge al\n");
                             }
-                            BinaryOpKind::Gt =>{
+                            BinaryOpKind::Gt => {
                                 println!("  setg al\n");
                             }
-                            BinaryOpKind::Le =>{
+                            BinaryOpKind::Le => {
                                 println!("  setle al\n");
                             }
-                            BinaryOpKind::Lt =>{
+                            BinaryOpKind::Lt => {
                                 println!("  setl al\n");
                             }
-                            _ => unreachable!()
+                            _ => unreachable!(),
                         }
                         println!("  movzx rax, al\n");
                     }
@@ -72,18 +75,18 @@ impl Expr{
                     BinaryOpKind::Sub => {
                         println!("  sub rax, rdi\n");
                     }
-                    BinaryOpKind::Mul =>{
+                    BinaryOpKind::Mul => {
                         println!("  imul rax, rdi\n");
-                    } 
-                    BinaryOpKind::Div =>{
+                    }
+                    BinaryOpKind::Div => {
                         println!("  cqo\n");
                         println!("  idiv rdi\n");
-                    } 
+                    }
                 }
             }
             ExprKind::Unary(op, operand) => {
-                operand.gen_asm(locals);  // Generate code for operand (pushes result)
-                
+                operand.gen_asm(locals); // Generate code for operand (pushes result)
+
                 match op {
                     UnaryOpKind::Pos => {
                         // Unary '+' does nothing - value already on stack
@@ -91,50 +94,48 @@ impl Expr{
                     }
                     UnaryOpKind::Neg => {
                         // Negate the value on top of stack
-                        println!("  neg rax\n");       // Negate it (rax = -rax)
+                        println!("  neg rax\n"); // Negate it (rax = -rax)
                     }
                 }
-                return;
             }
-            ExprKind::Literal(text) =>{
+            ExprKind::Literal(text) => {
                 println!("  mov rax, {}\n", text.symbol);
-                return;
             }
-            ExprKind::Var(_) =>{
-                gen_var(&self, locals);
+            ExprKind::Var(_) => {
+                gen_var(self, locals);
                 println!("  mov rax, [rax]\n");
-                return;
             }
             ExprKind::Assign(lhs, rhs) => {
-                gen_var(lhs,locals);
+                gen_var(lhs, locals);
                 println!("  push rax\n");
                 rhs.as_ref().gen_asm(locals);
                 println!("  pop rdi\n");
                 println!("  mov [rdi], rax\n");
-                return;
             }
-            ExprKind::Error => {return}
+            ExprKind::FnCall(sym) => {
+                println!("  call {sym}\n");
+            }
+            ExprKind::Error => {}
         };
     }
 }
 
-impl Stmt{
-    fn gen_asm(&self, locals: &[String], prog_context: &mut ProgContext){
+impl Stmt {
+    fn gen_asm(&self, locals: &[String], prog_context: &mut ProgContext) {
         match &self {
-            Stmt::Block(stmts)=>{
-                for stmt in stmts{
+            Stmt::Block(stmts) => {
+                for stmt in stmts {
                     stmt.gen_asm(locals, prog_context);
                 }
             }
-            Stmt::ExprStmt(expr)=>{
+            Stmt::ExprStmt(expr) => {
                 expr.gen_asm(locals);
             }
-            Stmt::Return(expr)=>{
+            Stmt::Return(expr) => {
                 expr.gen_asm(locals);
                 println!("  jmp .L.return\n");
-                return;
             }
-            Stmt::If(condition, ops, else_ops)=>{
+            Stmt::If(condition, ops, else_ops) => {
                 condition.gen_asm(locals);
                 let cnt = prog_context.apply();
                 println!("  cmp rax, 0\n");
@@ -142,43 +143,40 @@ impl Stmt{
                 ops.gen_asm(locals, prog_context);
                 println!("  jmp .L.end.{}\n", cnt);
                 println!(".L.else.{}:\n", cnt);
-                if let Some(else_ops) = &**else_ops{
+                if let Some(else_ops) = &**else_ops {
                     else_ops.gen_asm(locals, prog_context);
                 }
                 println!(".L.end.{}:\n", cnt);
-                return;
             }
-            Stmt::For(init, cond, incr, ops)=>{
+            Stmt::For(init, cond, incr, ops) => {
                 let cnt = prog_context.apply();
-                if let Some(expr) = &**init{
+                if let Some(expr) = &**init {
                     expr.gen_asm(locals);
                 }
                 println!(".L.begin.{}:\n", cnt);
-                if let Some(expr) = &**cond{
+                if let Some(expr) = &**cond {
                     expr.gen_asm(locals);
                     println!("  cmp rax, 0\n");
                     println!("  je  .L.end.{}\n", cnt);
                 }
                 ops.gen_asm(locals, prog_context);
-                if let Some(expr) = &**incr{
+                if let Some(expr) = &**incr {
                     expr.gen_asm(locals);
                 }
                 println!("  jmp .L.begin.{}\n", cnt);
                 println!(".L.end.{}:\n", cnt);
-                return;
             }
-            Stmt::While(cond, ops)=>{
+            Stmt::While(cond, ops) => {
                 let cnt = prog_context.apply();
-                println!(".L.begin.{}:\n", cnt);     
+                println!(".L.begin.{}:\n", cnt);
                 cond.gen_asm(locals);
                 println!("  cmp rax, 0\n");
                 println!("  je  .L.end.{}\n", cnt);
                 ops.gen_asm(locals, prog_context);
                 println!("  jmp .L.begin.{}\n", cnt);
                 println!(".L.end.{}:\n", cnt);
-                return;
             }
-            Stmt::Null=>{}
+            Stmt::Null => {}
         }
     }
 }

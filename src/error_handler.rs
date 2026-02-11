@@ -1,31 +1,32 @@
-﻿use crate::span::source_map::SourceFile;
-pub use crate::tokenizer::*;
 pub use crate::ast::*;
-
+use crate::span::source_map::SourceFile;
+pub use crate::tokenizer::*;
 
 pub static STR_NUMBER: &str = "number";
 pub static STR_RESERVE: &str = "reserve";
 
 #[derive(Debug, Clone)]
-pub enum NextTokenError{
-    WrongType{
+pub enum NextTokenError {
+    WrongType {
         expected: &'static str,
         found: Token,
     },
-    ExpectedToken{
+    ExpectedToken {
         expected: TokenKind,
         found: Token,
     },
 }
 
-impl NextTokenError{
-    pub fn error_print(&self, source: &SourceFile){
-         match self {
+impl NextTokenError {
+    pub fn error_print(&self, source: &SourceFile) {
+        match self {
             NextTokenError::WrongType { expected, found } => {
                 let (line, col) = source.lookup_line_column(found.span.pos);
                 // 打印行内容
-                println!("Error: expected {}, found {:?} at line {}, column {}",
-                         expected, found, line, col);
+                println!(
+                    "Error: expected {}, found {:?} at line {}, column {}",
+                    expected, found, line, col
+                );
                 println!("{}", source.line_content(line));
 
                 // 打印箭头指示位置
@@ -38,11 +39,13 @@ impl NextTokenError{
                 }
                 println!("{}", marker);
             }
-            NextTokenError::ExpectedToken { expected, found }=> {
+            NextTokenError::ExpectedToken { expected, found } => {
                 let (line, col) = source.lookup_line_column(found.span.pos);
                 // 打印行内容
-                println!("Error: expected {:?}, found {:?} at line {}, column {}",
-                         expected, found, line, col);
+                println!(
+                    "Error: expected {:?}, found {:?} at line {}, column {}",
+                    expected, found, line, col
+                );
                 println!("{}", source.line_content(line));
 
                 // 打印箭头指示位置
@@ -58,10 +61,10 @@ impl NextTokenError{
         }
     }
 
-    pub fn gen_error_expr(&self) -> Expr{
+    pub fn gen_error_expr(&self) -> Expr {
         let span = match &self {
             NextTokenError::WrongType { found, .. } => found.span,
-            NextTokenError::ExpectedToken { found , .. } => found.span
+            NextTokenError::ExpectedToken { found, .. } => found.span,
         };
         Expr {
             kind: ExprKind::Error,
