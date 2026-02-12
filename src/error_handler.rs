@@ -61,14 +61,17 @@ impl NextTokenError {
         }
     }
 
-    pub fn gen_error_expr(&self) -> Expr {
+    pub fn gen_error_expr(&self, id: &mut usize) -> Expr {
         let span = match &self {
             NextTokenError::WrongType { found, .. } => found.span,
             NextTokenError::ExpectedToken { found, .. } => found.span,
         };
-        Expr {
+        let result = Expr {
+            id: *id, 
             kind: ExprKind::Error,
             span,
-        }
+        };
+        *id += 1;
+        result
     }
 }

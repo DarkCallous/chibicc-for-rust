@@ -15,6 +15,7 @@ fn main() {
         index: 0,
         errors: vec![],
         locals: vec![],
+        expr_cnt: 0,
     };
 
     let ast = parser.parse_crate();

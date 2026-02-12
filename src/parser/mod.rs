@@ -10,6 +10,7 @@ pub struct Parser {
     pub index: usize,
     pub errors: Vec<NextTokenError>,
     pub locals: Vec<Symbol>,
+    pub expr_cnt: usize,
 }
 
 impl Parser {
@@ -52,6 +53,12 @@ impl Parser {
 }
 
 impl Parser {
+    fn next_expr(&mut self, kind: ExprKind, span: Span) -> Expr{
+        let exp = Expr { id: self.expr_cnt, kind, span };
+        self.expr_cnt += 1;
+        exp
+    }
+
     fn parse_lit_num(&mut self) -> Result<(Span, Lit), NextTokenError> {
         let (span, lit) = match &self.peek().kind {
             TokenKind::Literal(i) if i.kind == LitKind::Integer => (self.peek().span, i.clone()),
@@ -84,48 +91,32 @@ impl Parser {
 
     fn parse_primary(&mut self) -> Expr {
         if self.eat(&TokenKind::LParen) {
-            let result = self.parse_expr();
-            return if !self.expect_and_eat(&TokenKind::RParen) {
-                Expr {
-                    kind: ExprKind::Error,
-                    span: self.peek().span,
-                }
-            } else {
-                result
-            };
+            let mut result = self.parse_expr();
+            if !self.expect_and_eat(&TokenKind::RParen) {
+                result.kind = ExprKind::Error;
+            }
+            return result
         }
         if let Some((sym, span)) = self.parse_ident() {
             return if self.eat(&TokenKind::LParen) {
                 if !self.expect_and_eat(&TokenKind::RParen) {
-                    Expr {
-                        kind: ExprKind::Error,
-                        span,
-                    }
+                    self.next_expr(ExprKind::Error, span)
                 } else {
-                    Expr {
-                        kind: ExprKind::FnCall(sym),
-                        span,
-                    }
+                    self.next_expr( ExprKind::FnCall(sym), span)
                 }
             } else {
                 self.locals.push(sym.clone());
-                Expr {
-                    kind: ExprKind::Var(sym),
-                    span,
-                }
+                self.next_expr( ExprKind::Var(sym), span)
             };
         }
         let ex = self.parse_lit_num();
         match ex {
             Ok((span, kind)) => {
                 let kind = kind.clone();
-                Expr {
-                    kind: ExprKind::Literal(kind),
-                    span,
-                }
+                self.next_expr( ExprKind::Literal(kind), span)
             }
             Err(e) => {
-                let error_node = e.gen_error_expr();
+                let error_node = e.gen_error_expr(&mut self.expr_cnt);
                 self.errors.push(e);
                 error_node
             }
@@ -136,15 +127,17 @@ impl Parser {
         let result;
         let span = self.peek().span;
         if self.eat(&TokenKind::Add) {
-            result = Expr {
-                kind: ExprKind::Unary(UnaryOpKind::Pos, Box::new(self.parse_primary())),
-                span,
-            }
+            let prim = self.parse_primary();
+            result = self.next_expr(
+                ExprKind::Unary(UnaryOpKind::Pos, Box::new(prim)),
+                span
+            );
         } else if self.eat(&TokenKind::Sub) {
-            result = Expr {
-                kind: ExprKind::Unary(UnaryOpKind::Neg, Box::new(self.parse_primary())),
-                span,
-            }
+            let prim = self.parse_primary();
+            result = self.next_expr(
+                ExprKind::Unary(UnaryOpKind::Neg, Box::new(prim)),
+                span
+            );
         } else {
             result = self.parse_primary();
         }
@@ -160,10 +153,11 @@ impl Parser {
                 _ if self.eat(&TokenKind::Div) => BinaryOpKind::Div,
                 _ => break,
             };
-            node = Expr {
-                span,
-                kind: ExprKind::Binary(op, Box::new(node), Box::new(self.parse_unary())),
-            }
+            let unary_exp = self.parse_unary();
+            node = self.next_expr(
+                ExprKind::Binary(op, Box::new(node), Box::new(unary_exp)),
+                span
+            );
         }
         node
     }
@@ -177,10 +171,11 @@ impl Parser {
                 _ if self.eat(&TokenKind::Sub) => BinaryOpKind::Sub,
                 _ => break,
             };
-            node = Expr {
-                span,
-                kind: ExprKind::Binary(op, Box::new(node), Box::new(self.parse_mul())),
-            }
+            let mul_expr = self.parse_mul();
+            node = self.next_expr(
+                ExprKind::Binary(op, Box::new(node), Box::new(mul_expr)),
+                span
+            );
         }
         node
     }
@@ -196,10 +191,11 @@ impl Parser {
                 _ if self.eat(&TokenKind::Lt) => BinaryOpKind::Lt,
                 _ => break,
             };
-            node = Expr {
-                span,
-                kind: ExprKind::Binary(op, Box::new(node), Box::new(self.parse_add())),
-            }
+            let add_expr = self.parse_add();
+            node = self.next_expr(
+                ExprKind::Binary(op, Box::new(node), Box::new(add_expr)),
+                span
+            );
         }
         node
     }
@@ -213,10 +209,11 @@ impl Parser {
                 _ if self.eat(&TokenKind::Ne) => BinaryOpKind::Ne,
                 _ => break,
             };
-            node = Expr {
-                span,
-                kind: ExprKind::Binary(op, Box::new(node), Box::new(self.parse_rational())),
-            }
+            let rational_expr = self.parse_rational();
+            node = self.next_expr(
+                ExprKind::Binary(op, Box::new(node), Box::new(rational_expr)),
+                span
+            );
         }
         node
     }
@@ -226,10 +223,11 @@ impl Parser {
 
         if self.eat(&TokenKind::Eq) {
             let span = self.peek().span;
-            node = Expr {
-                span,
-                kind: ExprKind::Assign(Box::new(node), Box::new(self.parse_assign())),
-            };
+            let assign_expr = self.parse_assign();
+            node = self.next_expr(
+                ExprKind::Assign(Box::new(node), Box::new(assign_expr)),
+                span
+            );
         }
         node
     }
@@ -244,10 +242,7 @@ impl Parser {
         }
         let result = self.parse_expr();
         Some(if !self.expect_and_eat(&TokenKind::Semi) {
-            Expr {
-                kind: ExprKind::Error,
-                span: self.peek().span,
-            }
+            self.next_expr(ExprKind::Error, self.peek().span)
         } else {
             result
         })

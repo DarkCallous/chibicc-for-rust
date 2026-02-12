@@ -1,4 +1,4 @@
-use crate::span::*;
+﻿use crate::span::*;
 use crate::tokenizer::*;
 
 pub struct Crate {
@@ -49,6 +49,7 @@ pub enum ExprKind {
 }
 
 pub struct Expr {
+    pub id: usize,
     pub kind: ExprKind,
     pub span: Span,
 }
