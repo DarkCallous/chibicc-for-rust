@@ -1,3 +1,4 @@
+use chibicc_for_rust::codegen::abi::{sysv::*, win64::*};
 use chibicc_for_rust::codegen::*;
 use chibicc_for_rust::parser::*;
 use chibicc_for_rust::span::*;
@@ -20,7 +21,7 @@ fn main() {
 
     let ast = parser.parse_crate();
     if parser.errors.is_empty() {
-        let _ = gen_asm(ast, &parser.locals);
+        let _ = gen_asm::<Win64Abi>(ast, &parser.locals);
     }
     for e in parser.errors {
         e.error_print(&source_file);

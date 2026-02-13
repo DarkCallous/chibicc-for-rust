@@ -44,7 +44,7 @@ pub enum ExprKind {
     Unary(UnaryOpKind, Box<Expr>),
     Assign(Box<Expr>, Box<Expr>),
     Var(Symbol),
-    FnCall(Symbol),
+    FnCall(Symbol, Vec<Expr>),
     Error,
 }
 

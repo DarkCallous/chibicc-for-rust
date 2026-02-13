@@ -1,4 +1,4 @@
-use core::panic;
+﻿use core::panic;
 
 use crate::span::*;
 
@@ -46,6 +46,7 @@ pub enum TokenKind {
     Le,
     Lt,
     Semi,
+    Comma,
     Reserved(String),
     Eof,
 }

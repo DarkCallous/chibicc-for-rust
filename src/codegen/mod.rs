@@ -1,14 +1,18 @@
-﻿use std::io::{self, Write};
+﻿use abi::{Abi, Reg};
+use std::io::{self, Write};
 
-use crate::{ast::*, codegen::context::ProgContext};
+use crate::{ast::*, codegen::context::{FnContext, ProgContext}};
 
 mod context;
 
-pub struct CodeGen<W: Write> {
+pub mod abi;
+
+pub struct CodeGen<W: Write, ABI: Abi + Default> {
     writer: W,
+    abi: ABI,
 }
 
-impl<W: Write> Write for CodeGen<W> {
+impl<W: Write, ABI: Abi + Default> Write for CodeGen<W, ABI> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.writer.write(buf)
     }
@@ -18,18 +22,29 @@ impl<W: Write> Write for CodeGen<W> {
     }
 }
 
-impl<W: Write> CodeGen<W> {
-    pub fn new(writer: W) -> CodeGen<W> {
-        CodeGen { writer }
+impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
+    pub fn new(writer: W) -> CodeGen<W, ABI> {
+        CodeGen {
+            writer,
+            abi: ABI::default(),
+        }
+    }
+
+    pub fn push(&mut self, reg: &Reg) -> Result<(), io::Error> {
+        writeln!(self, "  push {}\n", reg.asm())
+    }
+
+    pub fn pop(&mut self, reg: &Reg) -> Result<(), io::Error> {
+        writeln!(self, "  pop {}\n", reg.asm())
     }
 
     pub fn gen_expr(&mut self, expr: &Expr, locals: &[String]) -> Result<(), io::Error> {
         match &expr.kind {
             ExprKind::Binary(ops, lhs, rhs) => {
                 self.gen_expr(rhs, locals)?;
-                writeln!(self, "  push rax\n")?;
+                self.push(&Reg::Rax)?;
                 self.gen_expr(lhs, locals)?;
-                writeln!(self, "  pop rdi\n")?;
+                self.pop(&Reg::Rdi)?;
                 match ops {
                     cmp @ (BinaryOpKind::EqEq
                     | BinaryOpKind::Ne
@@ -99,13 +114,30 @@ impl<W: Write> CodeGen<W> {
             }
             ExprKind::Assign(lhs, rhs) => {
                 self.gen_var(lhs, locals)?;
-                writeln!(self, "  push rax\n")?;
+                self.push(&Reg::Rax)?;
                 self.gen_expr(rhs, locals)?;
-                writeln!(self, "  pop rdi\n")?;
+                self.pop(&Reg::Rdi)?;
                 writeln!(self, "  mov [rdi], rax\n")?;
             }
-            ExprKind::FnCall(sym) => {
+            ExprKind::FnCall(sym, exprs) => {
+                for expr in exprs.iter().rev() {
+                    self.gen_expr(expr, locals)?;
+                    self.push(&Reg::Rax)?;
+                }
+                let regs = self.abi.int_arg_regs();
+                let nreg = exprs.len().min(regs.len());
+                for reg in self.abi.int_arg_regs().iter().take(nreg) {
+                    self.pop(reg)?;
+                }
+                let shadow = self.abi.shadow_space_size();
+                if shadow > 0 {
+                    writeln!(self, "  sub rsp, {shadow}\n")?;
+                }
                 writeln!(self, "  call {sym}\n")?;
+                let collect = shadow + exprs.len().saturating_sub(nreg) * 8;
+                if collect > 0 {
+                    writeln!(self, "  add rsp, {collect}\n")?;
+                }
             }
             ExprKind::Error => {}
         };
@@ -186,25 +218,29 @@ impl<W: Write> CodeGen<W> {
         }
         Ok(())
     }
+
+    pub fn gen_fn(&mut self, crat: Crate, locals: &[String], mut crate_context: ProgContext, name: String)->Result<(), io::Error> {
+        let context = FnContext::new(name);
+        println!("{}:\n", context.name);
+        writeln!(self, "  push rbp\n")?;
+        writeln!(self, "  mov rbp, rsp\n")?;
+        writeln!(self, "  sub rsp, {}\n", locals.len() * 8)?;
+        for exp in crat.stmts {
+            self.gen_stmt(&exp, locals, &mut crate_context)?;
+        }
+        writeln!(self, ".L.return:\n")?;
+        writeln!(self, "  mov rsp, rbp\n")?;
+        writeln!(self, "  pop rbp\n")?;
+        writeln!(self, "  ret\n")?;
+        Ok(())
+    }
 }
 
-pub fn gen_asm(crat: Crate, locals: &[String]) -> Result<(), io::Error> {
-    let mut crate_context = ProgContext::new();
+pub fn gen_asm<ABI: Abi + Default>(crat: Crate, locals: &[String]) -> Result<(), io::Error> {
+    let crate_context = ProgContext::new();
     println!(".intel_syntax noprefix\n");
     println!(".globl main\n");
-    println!("main:\n");
-
-    println!("  push rbp\n");
-    println!("  mov rbp, rsp\n");
-    println!("  sub rsp, {}\n", locals.len() * 8);
-
-    let mut codegen = CodeGen::new(io::stdout());
-    for exp in crat.stmts {
-        codegen.gen_stmt(&exp, locals, &mut crate_context)?;
-    }
-    println!(".L.return:\n");
-    println!("  mov rsp, rbp\n");
-    println!("  pop rbp\n");
-    println!("  ret\n");
+    let mut codegen: CodeGen<io::Stdout, ABI> = CodeGen::new(io::stdout());
+    codegen.gen_fn(crat, locals, crate_context, "main".to_string())?;
     Ok(())
 }

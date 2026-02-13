@@ -13,3 +13,13 @@ impl ProgContext {
         result
     }
 }
+
+pub struct FnContext{
+    pub name: String,
+}
+
+impl FnContext{
+    pub fn new(name: String)->FnContext{
+        FnContext { name }
+    }
+}

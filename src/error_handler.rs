@@ -67,7 +67,7 @@ impl NextTokenError {
             NextTokenError::ExpectedToken { found, .. } => found.span,
         };
         let result = Expr {
-            id: *id, 
+            id: *id,
             kind: ExprKind::Error,
             span,
         };

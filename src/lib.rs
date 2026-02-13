@@ -1,4 +1,4 @@
-﻿pub mod tokenizer;
+pub mod tokenizer;
 
 pub mod span;
 

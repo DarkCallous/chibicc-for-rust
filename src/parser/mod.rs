@@ -1,4 +1,4 @@
-﻿pub mod helper;
+pub mod helper;
 
 use crate::ast::*;
 use crate::error_handler::*;
@@ -53,8 +53,12 @@ impl Parser {
 }
 
 impl Parser {
-    fn next_expr(&mut self, kind: ExprKind, span: Span) -> Expr{
-        let exp = Expr { id: self.expr_cnt, kind, span };
+    fn next_expr(&mut self, kind: ExprKind, span: Span) -> Expr {
+        let exp = Expr {
+            id: self.expr_cnt,
+            kind,
+            span,
+        };
         self.expr_cnt += 1;
         exp
     }
@@ -89,31 +93,52 @@ impl Parser {
         result
     }
 
+    fn parse_params(&mut self) -> Option<Vec<Expr>> {
+        let mut result = vec![];
+        if self.eat(&TokenKind::RParen) {
+            return Some(result);
+        }
+        loop {
+            let expr = self.parse_expr();
+            result.push(expr);
+            if !self.eat(&TokenKind::Comma) {
+                break;
+            }
+        }
+        if self.eat(&TokenKind::RParen) {
+            Some(result)
+        } else {
+            None
+        }
+    }
+
     fn parse_primary(&mut self) -> Expr {
         if self.eat(&TokenKind::LParen) {
             let mut result = self.parse_expr();
             if !self.expect_and_eat(&TokenKind::RParen) {
                 result.kind = ExprKind::Error;
             }
-            return result
+            return result;
         }
         if let Some((sym, span)) = self.parse_ident() {
             return if self.eat(&TokenKind::LParen) {
-                if !self.expect_and_eat(&TokenKind::RParen) {
-                    self.next_expr(ExprKind::Error, span)
+                let params = self.parse_params();
+                let kind = if let Some(params) = params {
+                    ExprKind::FnCall(sym, params)
                 } else {
-                    self.next_expr( ExprKind::FnCall(sym), span)
-                }
+                    ExprKind::Error
+                };
+                self.next_expr(kind, span)
             } else {
                 self.locals.push(sym.clone());
-                self.next_expr( ExprKind::Var(sym), span)
+                self.next_expr(ExprKind::Var(sym), span)
             };
         }
         let ex = self.parse_lit_num();
         match ex {
             Ok((span, kind)) => {
                 let kind = kind.clone();
-                self.next_expr( ExprKind::Literal(kind), span)
+                self.next_expr(ExprKind::Literal(kind), span)
             }
             Err(e) => {
                 let error_node = e.gen_error_expr(&mut self.expr_cnt);
@@ -128,16 +153,10 @@ impl Parser {
         let span = self.peek().span;
         if self.eat(&TokenKind::Add) {
             let prim = self.parse_primary();
-            result = self.next_expr(
-                ExprKind::Unary(UnaryOpKind::Pos, Box::new(prim)),
-                span
-            );
+            result = self.next_expr(ExprKind::Unary(UnaryOpKind::Pos, Box::new(prim)), span);
         } else if self.eat(&TokenKind::Sub) {
             let prim = self.parse_primary();
-            result = self.next_expr(
-                ExprKind::Unary(UnaryOpKind::Neg, Box::new(prim)),
-                span
-            );
+            result = self.next_expr(ExprKind::Unary(UnaryOpKind::Neg, Box::new(prim)), span);
         } else {
             result = self.parse_primary();
         }
@@ -156,7 +175,7 @@ impl Parser {
             let unary_exp = self.parse_unary();
             node = self.next_expr(
                 ExprKind::Binary(op, Box::new(node), Box::new(unary_exp)),
-                span
+                span,
             );
         }
         node
@@ -174,7 +193,7 @@ impl Parser {
             let mul_expr = self.parse_mul();
             node = self.next_expr(
                 ExprKind::Binary(op, Box::new(node), Box::new(mul_expr)),
-                span
+                span,
             );
         }
         node
@@ -194,7 +213,7 @@ impl Parser {
             let add_expr = self.parse_add();
             node = self.next_expr(
                 ExprKind::Binary(op, Box::new(node), Box::new(add_expr)),
-                span
+                span,
             );
         }
         node
@@ -212,7 +231,7 @@ impl Parser {
             let rational_expr = self.parse_rational();
             node = self.next_expr(
                 ExprKind::Binary(op, Box::new(node), Box::new(rational_expr)),
-                span
+                span,
             );
         }
         node
@@ -226,7 +245,7 @@ impl Parser {
             let assign_expr = self.parse_assign();
             node = self.next_expr(
                 ExprKind::Assign(Box::new(node), Box::new(assign_expr)),
-                span
+                span,
             );
         }
         node
