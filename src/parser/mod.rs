@@ -331,10 +331,24 @@ impl Parser {
         }
     }
 
+    pub fn parse_params_def(&mut self) -> Vec<(Symbol, Ty)>{
+        let mut res = vec![];
+        if self.eat(&TokenKind::RParen){
+            return res;
+        }
+        
+        res.push((self.parse_ident().unwrap().0, Ty::Int));
+        while !self.eat(&TokenKind::RParen){
+            self.expect_and_eat(&TokenKind::Comma);
+            res.push((self.parse_ident().unwrap().0, Ty::Int));
+        }
+        res
+    }
+
     pub fn parse_fn(&mut self) -> Fn {
         let (name, _) = self.parse_ident().unwrap();
         self.expect_and_eat(&TokenKind::LParen);
-        self.expect_and_eat(&TokenKind::RParen);
+        let params = self.parse_params_def();
         self.expect_and_eat(&TokenKind::LBrace);
         let mut stmts = Vec::new();
         while !self.eat(&TokenKind::RBrace) {
@@ -343,13 +357,13 @@ impl Parser {
         Fn {
             name: name.clone(),
             stmts,
-            params: vec![],
+            params,
         }
     }
 
     pub fn parse_crate(&mut self) -> Crate {
         let mut fns = vec![];
-        while self.index < self.tokens.len(){
+        while self.index < self.tokens.len() {
             fns.push(self.parse_fn());
         }
         Crate { fns }

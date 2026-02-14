@@ -14,14 +14,17 @@ fn unique_base() -> String {
 }
 
 pub fn compile_and_run(input: &str) -> i32 {
+    let dir = std::env::temp_dir();
+    let base = unique_base();
+    let source_path = dir.join(format!("{base}.c"));
+    fs::write(&source_path, input).unwrap();
+
+    let obj_path = dir.join(format!("{base}.s"));
     let output = Command::new("cargo")
-        .args(["run", "--", input])
+        .args(["run", "--", source_path.to_str().unwrap()])
         .output()
         .unwrap();
     let asm = String::from_utf8(output.stdout).unwrap();
-    let dir = std::env::temp_dir();
-    let base = unique_base();
-    let obj_path = dir.join(format!("{base}.s"));
     fs::write(obj_path.clone(), asm).unwrap();
 
     let exe_path = dir.join(format!("{base}.exe"));

@@ -1,16 +1,37 @@
+use std::fs;
+use std::io::Read;
+
 use chibicc_for_rust::codegen::abi::{sysv::*, win64::*};
 use chibicc_for_rust::codegen::*;
 use chibicc_for_rust::parser::*;
 use chibicc_for_rust::resolver::*;
 use chibicc_for_rust::span::*;
 use chibicc_for_rust::{span::source_map::SourceFile, tokenizer::*};
-use std::env::{self};
+use clap::Parser as ClapParser;
+
+#[derive(clap::Parser)]
+struct Cli {
+    #[arg(value_name = "INPUT")]
+    input: std::path::PathBuf,
+}
 
 fn main() {
-    let cmds: Vec<String> = env::args().collect();
-    let input_str = cmds.get(1).expect("should have at least 1 input").as_str();
-    let source_file = SourceFile::new(source_map::FileName::Cli, input_str.to_string());
-    let tokens = tokenize(input_str.as_bytes());
+    let arg = Cli::parse();
+    let mut f = match fs::File::open(&arg.input) {
+        Ok(file) => file,
+        Err(err) => {
+            eprintln!("error: couldn't read `{}`: {}", arg.input.display(), err);
+            std::process::exit(1);
+        }
+    };
+    let mut code = String::new();
+    let _ = f.read_to_string(&mut code);
+    let source_file = SourceFile::new(source_map::FileName::Real(arg.input), code);
+    compile(source_file);
+}
+
+fn compile(file: SourceFile) {
+    let tokens = tokenize(file.src.as_bytes());
 
     let mut parser = Parser {
         tokens,
@@ -27,6 +48,6 @@ fn main() {
         let _ = gen_asm::<Win64Abi>(ast, resolver.resolved);
     }
     for e in parser.errors {
-        e.error_print(&source_file);
+        e.error_print(&file);
     }
 }
