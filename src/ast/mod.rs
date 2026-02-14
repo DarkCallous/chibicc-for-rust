@@ -1,13 +1,13 @@
-﻿use crate::span::*;
+use crate::span::*;
 use crate::tokenizer::*;
 
 pub type NodeId = usize;
 
-pub struct Crate{
+pub struct Crate {
     pub fns: Vec<Fn>,
 }
 
-pub enum Ty{
+pub enum Ty {
     Int,
 }
 

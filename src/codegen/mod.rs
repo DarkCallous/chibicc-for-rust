@@ -1,7 +1,8 @@
-﻿use abi::{Abi, Reg};
+use super::resolver::*;
+use abi::{Abi, Reg};
 use std::io::{self, Write};
 
-use crate::{ast::*, codegen::context::{FnContext, ProgContext}};
+use crate::{ast::*, codegen::context::FnContext, resolver::ResolvedCrate};
 
 mod context;
 
@@ -10,6 +11,7 @@ pub mod abi;
 pub struct CodeGen<W: Write, ABI: Abi + Default> {
     writer: W,
     abi: ABI,
+    resolved: ResolvedCrate,
 }
 
 impl<W: Write, ABI: Abi + Default> Write for CodeGen<W, ABI> {
@@ -23,10 +25,11 @@ impl<W: Write, ABI: Abi + Default> Write for CodeGen<W, ABI> {
 }
 
 impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
-    pub fn new(writer: W) -> CodeGen<W, ABI> {
+    pub fn new(writer: W, resolved: ResolvedCrate) -> CodeGen<W, ABI> {
         CodeGen {
             writer,
             abi: ABI::default(),
+            resolved,
         }
     }
 
@@ -38,12 +41,12 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
         writeln!(self, "  pop {}\n", reg.asm())
     }
 
-    pub fn gen_expr(&mut self, expr: &Expr, locals: &[String]) -> Result<(), io::Error> {
+    pub fn gen_expr(&mut self, expr: &Expr, fn_info: &FnInfo) -> Result<(), io::Error> {
         match &expr.kind {
             ExprKind::Binary(ops, lhs, rhs) => {
-                self.gen_expr(rhs, locals)?;
+                self.gen_expr(rhs, fn_info)?;
                 self.push(&Reg::Rax)?;
-                self.gen_expr(lhs, locals)?;
+                self.gen_expr(lhs, fn_info)?;
                 self.pop(&Reg::Rdi)?;
                 match ops {
                     cmp @ (BinaryOpKind::EqEq
@@ -92,7 +95,7 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
                 }
             }
             ExprKind::Unary(op, operand) => {
-                self.gen_expr(operand, locals)?; // Generate code for operand (pushes result)
+                self.gen_expr(operand, fn_info)?; // Generate code for operand (pushes result)
 
                 match op {
                     UnaryOpKind::Pos => {
@@ -109,19 +112,19 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
                 writeln!(self, "  mov rax, {}\n", text.symbol)?;
             }
             ExprKind::Var(_) => {
-                self.gen_var(expr, locals)?;
+                self.gen_var(expr, fn_info)?;
                 writeln!(self, "  mov rax, [rax]\n")?;
             }
             ExprKind::Assign(lhs, rhs) => {
-                self.gen_var(lhs, locals)?;
+                self.gen_var(lhs, fn_info)?;
                 self.push(&Reg::Rax)?;
-                self.gen_expr(rhs, locals)?;
+                self.gen_expr(rhs, fn_info)?;
                 self.pop(&Reg::Rdi)?;
                 writeln!(self, "  mov [rdi], rax\n")?;
             }
             ExprKind::FnCall(sym, exprs) => {
                 for expr in exprs.iter().rev() {
-                    self.gen_expr(expr, locals)?;
+                    self.gen_expr(expr, fn_info)?;
                     self.push(&Reg::Rax)?;
                 }
                 let regs = self.abi.int_arg_regs();
@@ -144,9 +147,10 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
         Ok(())
     }
 
-    pub fn gen_var(&mut self, var: &Expr, locals: &[String]) -> Result<(), io::Error> {
-        if let ExprKind::Var(sym) = &var.kind {
-            let offset = 8 * (locals.iter().position(|s| s == sym).unwrap() + 1);
+    pub fn gen_var(&mut self, var: &Expr, fn_info: &FnInfo) -> Result<(), io::Error> {
+        if let ExprKind::Var(_) = &var.kind {
+            let obj_id = self.resolved.expr_resolutions[&var.id];
+            let offset = 8 * (fn_info.locals.iter().position(|s| *s == obj_id).unwrap() + 1);
             writeln!(self, "  lea rax, [rbp - {offset}]\n")?;
         } else {
             unreachable!("should not call gen_var on non-LValue");
@@ -157,78 +161,79 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
     pub fn gen_stmt(
         &mut self,
         stmt: &Stmt,
-        locals: &[String],
-        prog_context: &mut ProgContext,
+        prog_context: &mut FnContext,
+        fn_info: &FnInfo,
     ) -> Result<(), io::Error> {
         match &stmt {
             Stmt::Block(stmts) => {
                 for stmt in stmts {
-                    self.gen_stmt(stmt, locals, prog_context)?;
+                    self.gen_stmt(stmt, prog_context, fn_info)?;
                 }
             }
             Stmt::ExprStmt(expr) => {
-                self.gen_expr(expr, locals)?;
+                self.gen_expr(expr, fn_info)?;
             }
             Stmt::Return(expr) => {
-                self.gen_expr(expr, locals)?;
-                writeln!(self, "  jmp .L.return\n")?;
+                self.gen_expr(expr, fn_info)?;
+                writeln!(self, "  jmp .L.{}.return\n", fn_info.fn_id)?;
             }
             Stmt::If(condition, ops, else_ops) => {
-                self.gen_expr(condition, locals)?;
+                self.gen_expr(condition, fn_info)?;
                 let cnt = prog_context.apply();
                 writeln!(self, "  cmp rax, 0\n")?;
-                writeln!(self, "  je .L.else.{}\n", cnt)?;
-                self.gen_stmt(ops, locals, prog_context)?;
-                writeln!(self, "  jmp .L.end.{}\n", cnt)?;
-                writeln!(self, ".L.else.{}:\n", cnt)?;
+                writeln!(self, "  je .L.{}.else.{}\n", fn_info.fn_id, cnt)?;
+                self.gen_stmt(ops, prog_context, fn_info)?;
+                writeln!(self, "  jmp .L.{}.end.{}\n", fn_info.fn_id, cnt)?;
+                writeln!(self, ".L.{}.else.{}:\n", fn_info.fn_id, cnt)?;
                 if let Some(else_ops) = &**else_ops {
-                    self.gen_stmt(else_ops, locals, prog_context)?;
+                    self.gen_stmt(else_ops, prog_context, fn_info)?;
                 }
-                writeln!(self, ".L.end.{}:\n", cnt)?;
+                writeln!(self, ".L.{}.end.{}:\n", fn_info.fn_id, cnt)?;
             }
             Stmt::For(init, cond, incr, ops) => {
                 let cnt = prog_context.apply();
                 if let Some(expr) = &**init {
-                    self.gen_expr(expr, locals)?;
+                    self.gen_expr(expr, fn_info)?;
                 }
-                writeln!(self, ".L.begin.{}:\n", cnt)?;
+                writeln!(self, ".L.{}.begin.{}:\n", fn_info.fn_id, cnt)?;
                 if let Some(expr) = &**cond {
-                    self.gen_expr(expr, locals)?;
+                    self.gen_expr(expr, fn_info)?;
                     writeln!(self, "  cmp rax, 0\n")?;
-                    writeln!(self, "  je  .L.end.{}\n", cnt)?;
+                    writeln!(self, "  je  .L.{}.end.{}\n", fn_info.fn_id, cnt)?;
                 }
-                self.gen_stmt(ops, locals, prog_context)?;
+                self.gen_stmt(ops, prog_context, fn_info)?;
                 if let Some(expr) = &**incr {
-                    self.gen_expr(expr, locals)?;
+                    self.gen_expr(expr, fn_info)?;
                 }
-                writeln!(self, "  jmp .L.begin.{}\n", cnt)?;
-                writeln!(self, ".L.end.{}:\n", cnt)?;
+                writeln!(self, "  jmp .L.{}.begin.{}\n", fn_info.fn_id, cnt)?;
+                writeln!(self, ".L.{}.end.{}:\n", fn_info.fn_id, cnt)?;
             }
             Stmt::While(cond, ops) => {
                 let cnt = prog_context.apply();
-                writeln!(self, ".L.begin.{}:\n", cnt)?;
-                self.gen_expr(cond, locals)?;
+                writeln!(self, ".L.{}.begin.{}:\n", fn_info.fn_id, cnt)?;
+                self.gen_expr(cond, fn_info)?;
                 writeln!(self, "  cmp rax, 0\n")?;
-                writeln!(self, "  je  .L.end.{}\n", cnt)?;
-                self.gen_stmt(ops, locals, prog_context)?;
-                writeln!(self, "  jmp .L.begin.{}\n", cnt)?;
-                writeln!(self, ".L.end.{}:\n", cnt)?;
+                writeln!(self, "  je  .L.{}.end.{}\n", fn_info.fn_id, cnt)?;
+                self.gen_stmt(ops, prog_context, fn_info)?;
+                writeln!(self, "  jmp .L.{}.begin.{}\n", fn_info.fn_id, cnt)?;
+                writeln!(self, ".L.{}.end.{}:\n", fn_info.fn_id, cnt)?;
             }
             Stmt::Null => {}
         }
         Ok(())
     }
 
-    pub fn gen_fn(&mut self, func: Fn, locals: &[String], mut crate_context: ProgContext)->Result<(), io::Error> {
-        let context = FnContext::new(func.name);
+    pub fn gen_fn(&mut self, func: Fn) -> Result<(), io::Error> {
+        let mut context = FnContext::new(func.name);
+        let fn_info = self.resolved.fn_info.remove(&context.name).unwrap();
         println!("{}:\n", context.name);
         writeln!(self, "  push rbp\n")?;
         writeln!(self, "  mov rbp, rsp\n")?;
-        writeln!(self, "  sub rsp, {}\n", locals.len() * 8)?;
+        writeln!(self, "  sub rsp, {}\n", fn_info.locals.len() * 8)?;
         for exp in func.stmts {
-            self.gen_stmt(&exp, locals, &mut crate_context)?;
+            self.gen_stmt(&exp, &mut context, &fn_info)?;
         }
-        writeln!(self, ".L.return:\n")?;
+        writeln!(self, ".L.{}.return:\n", fn_info.fn_id)?;
         writeln!(self, "  mov rsp, rbp\n")?;
         writeln!(self, "  pop rbp\n")?;
         writeln!(self, "  ret\n")?;
@@ -236,11 +241,12 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
     }
 }
 
-pub fn gen_asm<ABI: Abi + Default>(crat: Fn, locals: &[String]) -> Result<(), io::Error> {
-    let crate_context = ProgContext::new();
+pub fn gen_asm<ABI: Abi + Default>(crat: Crate, res: ResolvedCrate) -> Result<(), io::Error> {
     println!(".intel_syntax noprefix\n");
     println!(".globl main\n");
-    let mut codegen: CodeGen<io::Stdout, ABI> = CodeGen::new(io::stdout());
-    codegen.gen_fn(crat, locals, crate_context)?;
+    let mut codegen: CodeGen<io::Stdout, ABI> = CodeGen::new(io::stdout(), res);
+    for func in crat.fns {
+        codegen.gen_fn(func)?;
+    }
     Ok(())
 }

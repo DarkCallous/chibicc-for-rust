@@ -1,6 +1,7 @@
 use chibicc_for_rust::codegen::abi::{sysv::*, win64::*};
 use chibicc_for_rust::codegen::*;
 use chibicc_for_rust::parser::*;
+use chibicc_for_rust::resolver::*;
 use chibicc_for_rust::span::*;
 use chibicc_for_rust::{span::source_map::SourceFile, tokenizer::*};
 use std::env::{self};
@@ -15,13 +16,15 @@ fn main() {
         tokens,
         index: 0,
         errors: vec![],
-        locals: vec![],
         expr_cnt: 0,
     };
 
     let ast = parser.parse_crate();
     if parser.errors.is_empty() {
-        let _ = gen_asm::<Win64Abi>(ast, &parser.locals);
+        let mut resolver = Resolver::new();
+        resolver.resolve(&ast);
+
+        let _ = gen_asm::<Win64Abi>(ast, resolver.resolved);
     }
     for e in parser.errors {
         e.error_print(&source_file);

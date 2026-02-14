@@ -9,7 +9,6 @@ pub struct Parser {
     pub tokens: TokenContainer,
     pub index: usize,
     pub errors: Vec<NextTokenError>,
-    pub locals: Vec<Symbol>,
     pub expr_cnt: usize,
 }
 
@@ -130,7 +129,6 @@ impl Parser {
                 };
                 self.next_expr(kind, span)
             } else {
-                self.locals.push(sym.clone());
                 self.next_expr(ExprKind::Var(sym), span)
             };
         }
@@ -333,11 +331,27 @@ impl Parser {
         }
     }
 
-    pub fn parse_crate(&mut self) -> Fn {
+    pub fn parse_fn(&mut self) -> Fn {
+        let (name, _) = self.parse_ident().unwrap();
+        self.expect_and_eat(&TokenKind::LParen);
+        self.expect_and_eat(&TokenKind::RParen);
+        self.expect_and_eat(&TokenKind::LBrace);
         let mut stmts = Vec::new();
-        while self.index < self.tokens.len() {
+        while !self.eat(&TokenKind::RBrace) {
             stmts.push(self.parse_stmt());
         }
-        Fn { name: "main".to_string(), stmts, params: vec![] }
+        Fn {
+            name: name.clone(),
+            stmts,
+            params: vec![],
+        }
+    }
+
+    pub fn parse_crate(&mut self) -> Crate {
+        let mut fns = vec![];
+        while self.index < self.tokens.len(){
+            fns.push(self.parse_fn());
+        }
+        Crate { fns }
     }
 }
