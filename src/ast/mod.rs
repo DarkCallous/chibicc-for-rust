@@ -1,7 +1,19 @@
 ﻿use crate::span::*;
 use crate::tokenizer::*;
 
-pub struct Crate {
+pub type NodeId = usize;
+
+pub struct Crate{
+    pub fns: Vec<Fn>,
+}
+
+pub enum Ty{
+    Int,
+}
+
+pub struct Fn {
+    pub name: Symbol,
+    pub params: Vec<(Symbol, Ty)>,
     pub stmts: Vec<Stmt>,
 }
 
@@ -49,7 +61,7 @@ pub enum ExprKind {
 }
 
 pub struct Expr {
-    pub id: usize,
+    pub id: NodeId,
     pub kind: ExprKind,
     pub span: Span,
 }

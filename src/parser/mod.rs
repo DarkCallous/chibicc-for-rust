@@ -1,4 +1,4 @@
-pub mod helper;
+﻿pub mod helper;
 
 use crate::ast::*;
 use crate::error_handler::*;
@@ -333,11 +333,11 @@ impl Parser {
         }
     }
 
-    pub fn parse_crate(&mut self) -> Crate {
+    pub fn parse_crate(&mut self) -> Fn {
         let mut stmts = Vec::new();
         while self.index < self.tokens.len() {
             stmts.push(self.parse_stmt());
         }
-        Crate { stmts }
+        Fn { name: "main".to_string(), stmts, params: vec![] }
     }
 }

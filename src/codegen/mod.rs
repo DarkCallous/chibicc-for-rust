@@ -219,13 +219,13 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
         Ok(())
     }
 
-    pub fn gen_fn(&mut self, crat: Crate, locals: &[String], mut crate_context: ProgContext, name: String)->Result<(), io::Error> {
-        let context = FnContext::new(name);
+    pub fn gen_fn(&mut self, func: Fn, locals: &[String], mut crate_context: ProgContext)->Result<(), io::Error> {
+        let context = FnContext::new(func.name);
         println!("{}:\n", context.name);
         writeln!(self, "  push rbp\n")?;
         writeln!(self, "  mov rbp, rsp\n")?;
         writeln!(self, "  sub rsp, {}\n", locals.len() * 8)?;
-        for exp in crat.stmts {
+        for exp in func.stmts {
             self.gen_stmt(&exp, locals, &mut crate_context)?;
         }
         writeln!(self, ".L.return:\n")?;
@@ -236,11 +236,11 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
     }
 }
 
-pub fn gen_asm<ABI: Abi + Default>(crat: Crate, locals: &[String]) -> Result<(), io::Error> {
+pub fn gen_asm<ABI: Abi + Default>(crat: Fn, locals: &[String]) -> Result<(), io::Error> {
     let crate_context = ProgContext::new();
     println!(".intel_syntax noprefix\n");
     println!(".globl main\n");
     let mut codegen: CodeGen<io::Stdout, ABI> = CodeGen::new(io::stdout());
-    codegen.gen_fn(crat, locals, crate_context, "main".to_string())?;
+    codegen.gen_fn(crat, locals, crate_context)?;
     Ok(())
 }
