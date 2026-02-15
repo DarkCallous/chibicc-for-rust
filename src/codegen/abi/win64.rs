@@ -18,4 +18,8 @@ impl Abi for Win64Abi {
     fn shadow_space_size(&self) -> usize {
         32
     }
+
+    fn stack_param_base(&self) -> usize{
+        48
+    }
 }

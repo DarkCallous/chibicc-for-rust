@@ -49,4 +49,5 @@ pub trait Abi {
     fn ret_reg(&self) -> Reg;
     fn stack_align(&self) -> usize;
     fn shadow_space_size(&self) -> usize;
+    fn stack_param_base(&self) -> usize;
 }

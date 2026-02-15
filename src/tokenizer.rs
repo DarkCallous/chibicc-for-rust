@@ -273,6 +273,16 @@ pub fn tokenize(s: &[u8]) -> TokenContainer {
                 });
                 cursor += 1;
             }
+            b',' => {
+                vec.push(Token {
+                    kind: TokenKind::Comma,
+                    span: Span {
+                        pos: cursor,
+                        len: 1,
+                    },
+                });
+                cursor += 1;
+            }
             ident if ident.is_ascii_alphabetic() => {
                 let pos = cursor;
                 let data = parse_next_ident(s, &mut cursor);

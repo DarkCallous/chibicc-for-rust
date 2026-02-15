@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use super::tokenizer::*;
 
-type ObjId = usize;
+pub type ObjId = usize;
 
 #[derive(Default)]
 pub struct ResolvedCrate {

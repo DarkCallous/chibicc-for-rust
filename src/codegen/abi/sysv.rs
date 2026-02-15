@@ -18,4 +18,8 @@ impl Abi for SysVAbi {
     fn shadow_space_size(&self) -> usize {
         0
     }
+
+    fn stack_param_base(&self) -> usize{
+        16
+    }
 }
