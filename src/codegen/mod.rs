@@ -2,7 +2,12 @@
 use abi::{Abi, Reg};
 use std::io::{self, Write};
 
-use crate::{ast::*, codegen::context::FnContext, frame_layout::{FrameLayout, FrameLayouts}, resolver::ResolvedCrate};
+use crate::{
+    ast::*,
+    codegen::context::FnContext,
+    frame_layout::{FrameLayout, FrameLayouts},
+    resolver::ResolvedCrate,
+};
 
 mod context;
 
@@ -108,6 +113,12 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
                         // Negate the value on top of stack
                         writeln!(self, "  neg rax\n")?; // Negate it (rax = -rax)
                     }
+                    UnaryOpKind::AddrOf => {
+                        self.gen_var(operand, fn_layout)?;
+                    }
+                    UnaryOpKind::Deref => {
+                        writeln!(self, "  mov rax, [rax]")?;
+                    }
                 }
             }
             ExprKind::Literal(text) => {
@@ -150,12 +161,22 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
     }
 
     pub fn gen_var(&mut self, var: &Expr, fn_layout: &FrameLayout) -> Result<(), io::Error> {
-        if let ExprKind::Var(_) = &var.kind {
-            let obj_id = self.resolved.expr_resolutions[&var.id];
-            let offset = fn_layout.slots[&obj_id];
-            writeln!(self, "  lea rax, [rbp - {offset}]\n")?;
-        } else {
-            unreachable!("should not call gen_var on non-LValue");
+        match &var.kind {
+            ExprKind::Var(_) => {
+                let obj_id = self.resolved.expr_resolutions[&var.id];
+                let offset = fn_layout.slots[&obj_id];
+                writeln!(self, "  lea rax, [rbp - {offset}]\n")?;
+            }
+            ExprKind::Unary(op, inner) => {
+                if op == &UnaryOpKind::Deref {
+                    self.gen_expr(inner, fn_layout)?;
+                } else {
+                    unreachable!("should not call gen_var on non-LValue");
+                }
+            }
+            _ => {
+                unreachable!("should not call gen_var on non-LValue");
+            }
         }
         Ok(())
     }
@@ -165,7 +186,7 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
         stmt: &Stmt,
         prog_context: &mut FnContext,
         fn_info: &FnInfo,
-        fn_layout: &FrameLayout
+        fn_layout: &FrameLayout,
     ) -> Result<(), io::Error> {
         match &stmt {
             Stmt::Block(stmts) => {
@@ -236,16 +257,22 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
         writeln!(self, "  sub rsp, {}\n", fn_layout.frame_size)?;
 
         let pair = self.abi.int_arg_regs().iter().zip(fn_info.params.iter());
-        for (reg, param) in pair{
-            writeln!(self, "  mov [rbp - {}], {}\n", fn_layout.slots[param], reg.asm())?;
+        for (reg, param) in pair {
+            writeln!(
+                self,
+                "  mov [rbp - {}], {}\n",
+                fn_layout.slots[param],
+                reg.asm()
+            )?;
         }
-        for param in self.abi.int_arg_regs().len()..fn_info.params.len(){
+        for param in self.abi.int_arg_regs().len()..fn_info.params.len() {
             let dest_offset = fn_layout.slots[&fn_info.params[param]];
-            let src_offset = 8 * param.saturating_sub(self.abi.int_arg_regs().len()) + self.abi.stack_param_base();
+            let src_offset = 8 * param.saturating_sub(self.abi.int_arg_regs().len())
+                + self.abi.stack_param_base();
             writeln!(self, "  mov rax, [rbp + {}]", src_offset)?;
             writeln!(self, "  mov [rbp - {}], rax", dest_offset)?;
         }
-        
+
         for exp in func.stmts {
             self.gen_stmt(&exp, &mut context, &fn_info, &fn_layout)?;
         }
@@ -256,7 +283,7 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
         Ok(())
     }
 
-    pub fn gen_crate(&mut self, crat: Crate)-> Result<(), io::Error>{
+    pub fn gen_crate(&mut self, crat: Crate) -> Result<(), io::Error> {
         writeln!(self, ".intel_syntax noprefix\n")?;
         writeln!(self, ".globl main\n")?;
         for func in crat.fns {
@@ -266,7 +293,11 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
     }
 }
 
-pub fn gen_asm<ABI: Abi + Default>(crat: Crate, res: ResolvedCrate, layouts: FrameLayouts) -> Result<(), io::Error> {
+pub fn gen_asm<ABI: Abi + Default>(
+    crat: Crate,
+    res: ResolvedCrate,
+    layouts: FrameLayouts,
+) -> Result<(), io::Error> {
     let mut codegen: CodeGen<io::Stdout, ABI> = CodeGen::new(io::stdout(), res, layouts);
     codegen.gen_crate(crat)
 }

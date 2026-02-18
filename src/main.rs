@@ -3,11 +3,11 @@ use std::io::Read;
 
 use chibicc_for_rust::codegen::abi::{sysv::*, win64::*};
 use chibicc_for_rust::codegen::*;
+use chibicc_for_rust::frame_layout::*;
 use chibicc_for_rust::parser::*;
 use chibicc_for_rust::resolver::*;
 use chibicc_for_rust::span::*;
 use chibicc_for_rust::{span::source_map::SourceFile, tokenizer::*};
-use chibicc_for_rust::frame_layout::*;
 use clap::Parser as ClapParser;
 
 #[derive(clap::Parser)]
@@ -26,10 +26,14 @@ fn main() {
         }
     };
     let mut code = String::new();
-    match f.read_to_string(&mut code){
+    match f.read_to_string(&mut code) {
         Ok(_) => (),
         Err(err) => {
-            eprintln!("error: couldn't read `{}` after open: {}", arg.input.display(), err);
+            eprintln!(
+                "error: couldn't read `{}` after open: {}",
+                arg.input.display(),
+                err
+            );
             std::process::exit(1);
         }
     }

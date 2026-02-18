@@ -53,7 +53,9 @@ fn compile_and_run(source: &str) -> Result<i32, String> {
         .status()
         .map_err(|e| format!("run exe failed: {e}"))?;
 
-    let code = run.code().ok_or_else(|| "process terminated by signal".to_string())?;
+    let code = run
+        .code()
+        .ok_or_else(|| "process terminated by signal".to_string())?;
 
     let _ = fs::remove_file(&src_path);
     let _ = fs::remove_file(&asm_path);
@@ -175,15 +177,51 @@ fn test_equality_precedence_with_unary() {
 }
 
 #[test]
-fn test_fn_call_without_param(){
-    assert_eq!(run(
-        r#"
+fn test_fn_call_without_param() {
+    assert_eq!(
+        run(r#"
         fma(a, b, c){
             return a*b+c;
         }
         main(){
             return fma(5, 6, 2);
         }
-        "#
-    ), 32);
+        "#),
+        32
+    );
+}
+
+#[test]
+fn test_addr_deref_roundtrip() {
+    assert_eq!(run("main() { x=3; return *&x; }"), 3);
+}
+
+#[test]
+fn test_multi_level_deref() {
+    assert_eq!(run("main() { x=3; y=&x; z=&y; return **z; }"), 3);
+}
+
+#[test]
+fn test_deref_with_addrof_plus_offset() {
+    assert_eq!(run("main() { x=3; y=5; return *(&x-8); }"), 5);
+}
+
+#[test]
+fn test_deref_with_addrof_minus_offset() {
+    assert_eq!(run("main() { x=3; y=5; return *(&y+8); }"), 3);
+}
+
+#[test]
+fn test_store_through_pointer() {
+    assert_eq!(run("main() { x=3; y=&x; *y=5; return x; }"), 5);
+}
+
+#[test]
+fn test_store_with_addrof_plus_offset() {
+    assert_eq!(run("main() { x=3; y=5; *(&x-8)=7; return y; }"), 7);
+}
+
+#[test]
+fn test_store_with_addrof_minus_offset() {
+    assert_eq!(run("main() { x=3; y=5; *(&y+8)=7; return x; }"), 7);
 }

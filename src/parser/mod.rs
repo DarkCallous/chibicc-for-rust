@@ -1,4 +1,4 @@
-﻿pub mod helper;
+pub mod helper;
 
 use crate::ast::*;
 use crate::error_handler::*;
@@ -147,18 +147,20 @@ impl Parser {
     }
 
     fn parse_unary(&mut self) -> Expr {
-        let result;
         let span = self.peek().span;
-        if self.eat(&TokenKind::Add) {
-            let prim = self.parse_primary();
-            result = self.next_expr(ExprKind::Unary(UnaryOpKind::Pos, Box::new(prim)), span);
-        } else if self.eat(&TokenKind::Sub) {
-            let prim = self.parse_primary();
-            result = self.next_expr(ExprKind::Unary(UnaryOpKind::Neg, Box::new(prim)), span);
+        let op = match true {
+            _ if self.eat(&TokenKind::Add) => Some(UnaryOpKind::Pos),
+            _ if self.eat(&TokenKind::Sub) => Some(UnaryOpKind::Neg),
+            _ if self.eat(&TokenKind::And) => Some(UnaryOpKind::AddrOf),
+            _ if self.eat(&TokenKind::Mul) => Some(UnaryOpKind::Deref),
+            _ => None,
+        };
+        if let Some(op) = op {
+            let inner = self.parse_unary();
+            self.next_expr(ExprKind::Unary(op, Box::new(inner)), span)
         } else {
-            result = self.parse_primary();
+            self.parse_primary()
         }
-        result
     }
 
     fn parse_mul(&mut self) -> Expr {
@@ -331,14 +333,14 @@ impl Parser {
         }
     }
 
-    pub fn parse_params_def(&mut self) -> Vec<(Symbol, Ty)>{
+    pub fn parse_params_def(&mut self) -> Vec<(Symbol, Ty)> {
         let mut res = vec![];
-        if self.eat(&TokenKind::RParen){
+        if self.eat(&TokenKind::RParen) {
             return res;
         }
-        
+
         res.push((self.parse_ident().unwrap().0, Ty::Int));
-        while !self.eat(&TokenKind::RParen){
+        while !self.eat(&TokenKind::RParen) {
             self.expect_and_eat(&TokenKind::Comma);
             res.push((self.parse_ident().unwrap().0, Ty::Int));
         }

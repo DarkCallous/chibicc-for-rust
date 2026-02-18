@@ -47,6 +47,7 @@ pub enum TokenKind {
     Lt,
     Semi,
     Comma,
+    And,
     Reserved(String),
     Eof,
 }
@@ -276,6 +277,16 @@ pub fn tokenize(s: &[u8]) -> TokenContainer {
             b',' => {
                 vec.push(Token {
                     kind: TokenKind::Comma,
+                    span: Span {
+                        pos: cursor,
+                        len: 1,
+                    },
+                });
+                cursor += 1;
+            }
+            b'&' => {
+                vec.push(Token {
+                    kind: TokenKind::And,
                     span: Span {
                         pos: cursor,
                         len: 1,

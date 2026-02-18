@@ -80,12 +80,12 @@ impl Resolver {
     }
 
     pub fn resolve_fn(&mut self, func: &Fn) -> FnInfo {
-        let id = self.declare_fn(func.name.clone());
+        let id = self.declare_fn(&func.name);
         self.operating_fn = Some(FnInfo::new(id));
         let fn_frame = ScopeFrame::default();
         self.scopes.push(fn_frame);
         for (name, ty) in &func.params {
-            self.declare_param(name.clone());
+            self.declare_param(name);
         }
 
         for stmt in &func.stmts {
@@ -163,19 +163,18 @@ impl Resolver {
             }
             ExprKind::Var(sym) => {
                 let id = expr.id;
-                let obj = self
-                    .lookup(sym)
-                    .expect("identfier must be declared before use");
+                let obj = self.lookup(sym).unwrap_or_else(||self.declare_local(sym));
+                //.expect("identfier must be declared before use");
                 self.resolved.expr_resolutions.insert(id, obj);
             }
             ExprKind::Literal(_) | ExprKind::Error => (),
         }
     }
 
-    pub fn declare_local(&mut self, name: Symbol) -> ObjId {
+    pub fn declare_local(&mut self, name: &Symbol) -> ObjId {
         let obj = Obj {
             id: self.obj_cnt,
-            name,
+            name: name.clone(),
             kind: ObjKind::Local,
         };
         let scope = self
@@ -190,10 +189,10 @@ impl Resolver {
         id
     }
 
-    pub fn declare_param(&mut self, name: Symbol) -> ObjId {
+    pub fn declare_param(&mut self, name: &Symbol) -> ObjId {
         let obj = Obj {
             id: self.obj_cnt,
-            name,
+            name: name.clone(),
             kind: ObjKind::Param,
         };
         let scope = self
@@ -208,10 +207,10 @@ impl Resolver {
         id
     }
 
-    pub fn declare_fn(&mut self, name: Symbol) -> ObjId {
+    pub fn declare_fn(&mut self, name: &Symbol) -> ObjId {
         let obj = Obj {
             id: self.obj_cnt,
-            name,
+            name: name.clone(),
             kind: ObjKind::Func,
         };
         self.scopes[0].ord_map.insert(obj.name.clone(), obj.id);

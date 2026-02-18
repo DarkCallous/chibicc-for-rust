@@ -19,7 +19,7 @@ impl Abi for Win64Abi {
         32
     }
 
-    fn stack_param_base(&self) -> usize{
+    fn stack_param_base(&self) -> usize {
         48
     }
 }

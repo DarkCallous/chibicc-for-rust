@@ -1,4 +1,4 @@
-use crate::span::*;
+﻿use crate::span::*;
 use crate::tokenizer::*;
 
 pub type NodeId = usize;
@@ -45,9 +45,12 @@ pub enum BinaryOpKind {
     Gt,
 }
 
+#[derive(PartialEq)]
 pub enum UnaryOpKind {
     Pos,
     Neg,
+    AddrOf,
+    Deref,
 }
 
 pub enum ExprKind {

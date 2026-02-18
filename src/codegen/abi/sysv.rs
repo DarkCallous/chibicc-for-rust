@@ -19,7 +19,7 @@ impl Abi for SysVAbi {
         0
     }
 
-    fn stack_param_base(&self) -> usize{
+    fn stack_param_base(&self) -> usize {
         16
     }
 }
