@@ -1,4 +1,4 @@
-pub mod helper;
+﻿pub mod helper;
 
 use crate::ast::*;
 use crate::error_handler::*;
@@ -9,7 +9,14 @@ pub struct Parser {
     pub tokens: TokenContainer,
     pub index: usize,
     pub errors: Vec<NextTokenError>,
-    pub expr_cnt: usize,
+    pub node_cnt: usize,
+}
+
+fn is_typename(tk: &TokenKind)->bool{
+    match tk{
+        TokenKind::Keyword(kwk) if kwk == &KeywordKind::Int => true,
+        _ => false,
+    }
 }
 
 impl Parser {
@@ -54,12 +61,31 @@ impl Parser {
 impl Parser {
     fn next_expr(&mut self, kind: ExprKind, span: Span) -> Expr {
         let exp = Expr {
-            id: self.expr_cnt,
+            id: self.node_cnt,
             kind,
             span,
         };
-        self.expr_cnt += 1;
+        self.node_cnt += 1;
         exp
+    }
+
+    fn next_stmt(&mut self, kind: StmtKind) -> Stmt{
+        let stmt = Stmt {
+            id: self.node_cnt,
+            kind,
+        };
+        self.node_cnt += 1;
+        stmt
+    }
+
+    fn next_declarator(&mut self, ptr: Option<Box<PointerDecl>>, direct: DirectDeclatator) -> Declarator{
+        let decl = Declarator {
+            id: self.node_cnt,
+            ptr,
+            direct,
+        };
+        self.node_cnt += 1;
+        decl
     }
 
     fn parse_lit_num(&mut self) -> Result<(Span, Lit), NextTokenError> {
@@ -139,7 +165,7 @@ impl Parser {
                 self.next_expr(ExprKind::Literal(kind), span)
             }
             Err(e) => {
-                let error_node = e.gen_error_expr(&mut self.expr_cnt);
+                let error_node = e.gen_error_expr(&mut self.node_cnt);
                 self.errors.push(e);
                 error_node
             }
@@ -255,35 +281,100 @@ impl Parser {
         self.parse_assign()
     }
 
-    pub fn parse_exprstmt(&mut self) -> Option<Expr> {
+    pub fn parse_exprstmt(&mut self) -> Option<Box<Expr>> {
         if self.eat(&TokenKind::Semi) {
             return None;
         }
         let result = self.parse_expr();
-        Some(if !self.expect_and_eat(&TokenKind::Semi) {
+        let result = if !self.expect_and_eat(&TokenKind::Semi) {
             self.next_expr(ExprKind::Error, self.peek().span)
         } else {
             result
-        })
+        };
+        Some(Box::new(result))
+    }
+
+    pub fn parse_declaration(&mut self) -> Stmt{
+        let spec = self.parse_decl_spec();
+        let mut decls = vec![];
+        if !self.expect(&TokenKind::Semi){
+            decls.push(self.parse_var_decl());
+            while self.eat(&TokenKind::Comma){
+                decls.push(self.parse_var_decl());
+            }
+        }
+        self.expect_and_eat(&TokenKind::Semi);
+        self.next_stmt(StmtKind::Decl(spec, decls))
+    }
+
+    pub fn parse_decl_spec(&mut self) -> DeclSpec{
+        self.eat(&TokenKind::Keyword(KeywordKind::Int));
+        DeclSpec {  }
+    }
+
+    pub fn parse_var_decl(&mut self) -> VarDecl{
+        let declarator  = self.parse_declarator();
+        let init = if self.eat(&TokenKind::Eq){
+            Some(Box::new(self.parse_expr()))
+        } else {
+            None
+        };
+        VarDecl { declarator, init}
+    }
+
+    pub fn parse_declarator(&mut self) -> Declarator{
+        let direct = self.parse_direct_decl();
+        self.next_declarator(None, direct)
+    }
+
+    pub fn parse_pointer_decl(&mut self)-> PointerDecl{
+        PointerDecl { inner: None }
+    }
+
+    pub fn parse_direct_decl(&mut self) -> DirectDeclatator{
+        if let Some((sym, _)) = self.eat_ident(){
+            DirectDeclatator::Ident(sym)
+        }
+        else{
+            panic!("no direct decl found")
+        }
+    }
+
+    pub fn eat_ident(&mut self) -> Option<(Symbol, Span)>{
+        let result = if let TokenKind::Ident(sym) = &self.peek().kind{
+            Some((sym.clone(), self.peek().span))
+        } else{
+            None
+        };
+        if result.is_some(){
+            self.bump();
+        }
+        result
     }
 
     pub fn parse_compoundstmt(&mut self) -> Stmt {
         let mut stmts = Vec::new();
         while !self.eat(&TokenKind::RBrace) {
-            stmts.push(self.parse_stmt());
+            stmts.push( 
+                if is_typename(&self.peek().kind){
+                    self.parse_declaration()
+                } else {
+                    self.parse_stmt()
+                }
+            );
         }
-        Stmt::Block(stmts)
+        self.next_stmt(StmtKind::Block(stmts))
     }
 
     pub fn parse_stmt(&mut self) -> Stmt {
         if self.eat(&TokenKind::LBrace) {
             self.parse_compoundstmt()
         } else if self.eat(&TokenKind::Keyword(KeywordKind::Return)) {
-            let result = Stmt::Return(Box::new(self.parse_expr()));
+            let result = StmtKind::Return(Box::new(self.parse_expr()));
             if !self.eat(&TokenKind::Semi) {
                 panic!("missing ;");
             }
-            result
+            self.next_stmt(result)
         } else if self.eat(&TokenKind::Keyword(KeywordKind::If)) {
             if !self.eat(&TokenKind::LParen) {
                 panic!("missing (")
@@ -294,11 +385,11 @@ impl Parser {
             }
             let ops = self.parse_stmt();
             let else_ops = if self.eat(&TokenKind::Keyword(KeywordKind::Else)) {
-                Some(self.parse_stmt())
+                Some(Box::new(self.parse_stmt()))
             } else {
                 None
             };
-            Stmt::If(Box::new(condition), Box::new(ops), Box::new(else_ops))
+            self.next_stmt(StmtKind::If(Box::new(condition), Box::new(ops), else_ops))
         } else if self.eat(&TokenKind::Keyword(KeywordKind::While)) {
             if !self.eat(&TokenKind::LParen) {
                 panic!("missing (")
@@ -308,7 +399,7 @@ impl Parser {
                 panic!("missing )")
             }
             let ops = self.parse_stmt();
-            Stmt::While(Box::new(condition), Box::new(ops))
+            self.next_stmt(StmtKind::While(Box::new(condition), Box::new(ops)))
         } else if self.eat(&TokenKind::Keyword(KeywordKind::For)) {
             if !self.eat(&TokenKind::LParen) {
                 panic!("missing (")
@@ -320,16 +411,17 @@ impl Parser {
                 if !self.eat(&TokenKind::RParen) {
                     panic!("missing )")
                 }
-                Some(incr)
+                Some(Box::new(incr))
             } else {
                 None
             };
             let ops = self.parse_stmt();
-            Stmt::For(Box::new(ini), Box::new(cond), Box::new(incr), Box::new(ops))
+            self.next_stmt(StmtKind::For(ini, cond, incr, Box::new(ops)))
         } else {
-            self.parse_exprstmt()
-                .map(|expr| Stmt::ExprStmt(Box::new(expr)))
-                .unwrap_or(Stmt::Null)
+            let kind = self.parse_exprstmt()
+                .map(StmtKind::ExprStmt)
+                .unwrap_or(StmtKind::Null);
+            self.next_stmt(kind)
         }
     }
 
@@ -352,13 +444,10 @@ impl Parser {
         self.expect_and_eat(&TokenKind::LParen);
         let params = self.parse_params_def();
         self.expect_and_eat(&TokenKind::LBrace);
-        let mut stmts = Vec::new();
-        while !self.eat(&TokenKind::RBrace) {
-            stmts.push(self.parse_stmt());
-        }
+        let body = self.parse_compoundstmt();
         Fn {
             name: name.clone(),
-            stmts,
+            body,
             params,
         }
     }

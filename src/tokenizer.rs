@@ -23,6 +23,7 @@ pub enum KeywordKind {
     Else,
     While,
     For,
+    Int,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -60,6 +61,7 @@ impl KeywordKind {
             "else" => Some(KeywordKind::Else),
             "for" => Some(KeywordKind::For),
             "while" => Some(KeywordKind::While),
+            "int" => Some(KeywordKind::Int),
             _ => None,
         }
     }

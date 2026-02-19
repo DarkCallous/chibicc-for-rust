@@ -27,8 +27,8 @@ fn compile_and_run(source: &str) -> Result<i32, String> {
         .map_err(|e| format!("invoke compiler failed: {e}"))?;
 
     if !out.status.success() {
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        let stderr = String::from_utf8_lossy(&out.stderr);
+        let stdout = String::from_utf8_lossy(&out.stdout).replace("\r\n", "\n");
+        let stderr = String::from_utf8_lossy(&out.stderr).replace("\r\n", "\n");
         let _ = fs::remove_file(&src_path);
         return Err(format!(
             "compiler failed.\nstdout:\n{stdout}\nstderr:\n{stderr}"
@@ -43,7 +43,7 @@ fn compile_and_run(source: &str) -> Result<i32, String> {
         .map_err(|e| format!("invoke clang failed: {e}"))?;
 
     if !clang.status.success() {
-        let stderr = String::from_utf8_lossy(&clang.stderr);
+        let stderr = String::from_utf8_lossy(&clang.stderr).replace("\r\n", "\n");
         let _ = fs::remove_file(&src_path);
         let _ = fs::remove_file(&asm_path);
         return Err(format!("clang failed:\n{stderr}"));
@@ -65,7 +65,7 @@ fn compile_and_run(source: &str) -> Result<i32, String> {
 }
 
 fn run(source: &str) -> i32 {
-    compile_and_run(source).unwrap()
+    compile_and_run(source).unwrap_or_else(|err| panic!("{err}"))
 }
 
 #[test]
@@ -193,35 +193,35 @@ fn test_fn_call_without_param() {
 
 #[test]
 fn test_addr_deref_roundtrip() {
-    assert_eq!(run("main() { x=3; return *&x; }"), 3);
+    assert_eq!(run("main() { int x=3; return *&x; }"), 3);
 }
 
 #[test]
 fn test_multi_level_deref() {
-    assert_eq!(run("main() { x=3; y=&x; z=&y; return **z; }"), 3);
+    assert_eq!(run("main() { int x=3; int y=&x; int z=&y; return **z; }"), 3);
 }
 
 #[test]
 fn test_deref_with_addrof_plus_offset() {
-    assert_eq!(run("main() { x=3; y=5; return *(&x-8); }"), 5);
+    assert_eq!(run("main() { int x=3; int y=5; return *(&x-8); }"), 5);
 }
 
 #[test]
 fn test_deref_with_addrof_minus_offset() {
-    assert_eq!(run("main() { x=3; y=5; return *(&y+8); }"), 3);
+    assert_eq!(run("main() { int x=3; int y=5; return *(&y+8); }"), 3);
 }
 
 #[test]
 fn test_store_through_pointer() {
-    assert_eq!(run("main() { x=3; y=&x; *y=5; return x; }"), 5);
+    assert_eq!(run("main() { int x=3; int y=&x; *y=5; return x; }"), 5);
 }
 
 #[test]
 fn test_store_with_addrof_plus_offset() {
-    assert_eq!(run("main() { x=3; y=5; *(&x-8)=7; return y; }"), 7);
+    assert_eq!(run("main() { int x=3; int y=5; *(&x-8)=7; return y; }"), 7);
 }
 
 #[test]
 fn test_store_with_addrof_minus_offset() {
-    assert_eq!(run("main() { x=3; y=5; *(&y+8)=7; return x; }"), 7);
+    assert_eq!(run("main() { int x=3; int y=5; *(&y+8)=7; return x; }"), 7);
 }

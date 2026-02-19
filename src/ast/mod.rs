@@ -14,22 +14,51 @@ pub enum Ty {
 pub struct Fn {
     pub name: Symbol,
     pub params: Vec<(Symbol, Ty)>,
-    pub stmts: Vec<Stmt>,
+    pub body: Stmt,
 }
 
-pub enum Stmt {
+pub struct DeclSpec{
+
+}
+
+pub struct PointerDecl{
+    pub inner: Option<Box<PointerDecl>>,
+}
+
+pub enum DirectDeclatator{
+    Ident(Symbol),
+}
+
+pub struct Declarator{
+    pub ptr: Option<Box<PointerDecl>>,
+    pub direct: DirectDeclatator,
+    pub id: NodeId,
+}
+
+pub struct VarDecl{
+    pub declarator: Declarator,
+    pub init: Option<Box<Expr>>,
+}
+
+pub enum StmtKind {
     Block(Vec<Stmt>),
     ExprStmt(Box<Expr>),
     Return(Box<Expr>),
-    If(Box<Expr>, Box<Stmt>, Box<Option<Stmt>>),
+    If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
     While(Box<Expr>, Box<Stmt>),
     For(
-        Box<Option<Expr>>,
-        Box<Option<Expr>>,
-        Box<Option<Expr>>,
+        Option<Box<Expr>>,
+        Option<Box<Expr>>,
+        Option<Box<Expr>>,
         Box<Stmt>,
     ),
+    Decl(DeclSpec, Vec<VarDecl>),
     Null,
+}
+
+pub struct Stmt{
+    pub kind: StmtKind,
+    pub id: NodeId,
 }
 
 pub enum BinaryOpKind {

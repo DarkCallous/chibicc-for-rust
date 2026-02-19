@@ -1,7 +1,6 @@
 use crate::resolver::ResolvedCrate;
 use crate::resolver::*;
 use std::collections::HashMap;
-use std::fmt::Display;
 
 pub struct FrameLayout {
     pub slots: HashMap<ObjId, usize>,

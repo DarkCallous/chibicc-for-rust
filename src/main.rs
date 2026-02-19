@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::Read;
 
-use chibicc_for_rust::codegen::abi::{sysv::*, win64::*};
+use chibicc_for_rust::codegen::abi::{win64::*};
 use chibicc_for_rust::codegen::*;
 use chibicc_for_rust::frame_layout::*;
 use chibicc_for_rust::parser::*;
@@ -48,7 +48,7 @@ fn compile(file: SourceFile) {
         tokens,
         index: 0,
         errors: vec![],
-        expr_cnt: 0,
+        node_cnt: 0,
     };
 
     let ast = parser.parse_crate();

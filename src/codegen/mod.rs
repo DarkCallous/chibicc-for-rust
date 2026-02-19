@@ -188,20 +188,20 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
         fn_info: &FnInfo,
         fn_layout: &FrameLayout,
     ) -> Result<(), io::Error> {
-        match &stmt {
-            Stmt::Block(stmts) => {
+        match &stmt.kind {
+            StmtKind::Block(stmts) => {
                 for stmt in stmts {
                     self.gen_stmt(stmt, prog_context, fn_info, fn_layout)?;
                 }
             }
-            Stmt::ExprStmt(expr) => {
+            StmtKind::ExprStmt(expr) => {
                 self.gen_expr(expr, fn_layout)?;
             }
-            Stmt::Return(expr) => {
+            StmtKind::Return(expr) => {
                 self.gen_expr(expr, fn_layout)?;
                 writeln!(self, "  jmp .L.{}.return\n", fn_info.fn_id)?;
             }
-            Stmt::If(condition, ops, else_ops) => {
+            StmtKind::If(condition, ops, else_ops) => {
                 self.gen_expr(condition, fn_layout)?;
                 let cnt = prog_context.apply();
                 writeln!(self, "  cmp rax, 0\n")?;
@@ -209,30 +209,30 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
                 self.gen_stmt(ops, prog_context, fn_info, fn_layout)?;
                 writeln!(self, "  jmp .L.{}.end.{}\n", fn_info.fn_id, cnt)?;
                 writeln!(self, ".L.{}.else.{}:\n", fn_info.fn_id, cnt)?;
-                if let Some(else_ops) = &**else_ops {
+                if let Some(else_ops) = else_ops {
                     self.gen_stmt(else_ops, prog_context, fn_info, fn_layout)?;
                 }
                 writeln!(self, ".L.{}.end.{}:\n", fn_info.fn_id, cnt)?;
             }
-            Stmt::For(init, cond, incr, ops) => {
+            StmtKind::For(init, cond, incr, ops) => {
                 let cnt = prog_context.apply();
-                if let Some(expr) = &**init {
+                if let Some(expr) = init {
                     self.gen_expr(expr, fn_layout)?;
                 }
                 writeln!(self, ".L.{}.begin.{}:\n", fn_info.fn_id, cnt)?;
-                if let Some(expr) = &**cond {
+                if let Some(expr) = cond {
                     self.gen_expr(expr, fn_layout)?;
                     writeln!(self, "  cmp rax, 0\n")?;
                     writeln!(self, "  je  .L.{}.end.{}\n", fn_info.fn_id, cnt)?;
                 }
                 self.gen_stmt(ops, prog_context, fn_info, fn_layout)?;
-                if let Some(expr) = &**incr {
+                if let Some(expr) = incr {
                     self.gen_expr(expr, fn_layout)?;
                 }
                 writeln!(self, "  jmp .L.{}.begin.{}\n", fn_info.fn_id, cnt)?;
                 writeln!(self, ".L.{}.end.{}:\n", fn_info.fn_id, cnt)?;
             }
-            Stmt::While(cond, ops) => {
+            StmtKind::While(cond, ops) => {
                 let cnt = prog_context.apply();
                 writeln!(self, ".L.{}.begin.{}:\n", fn_info.fn_id, cnt)?;
                 self.gen_expr(cond, fn_layout)?;
@@ -242,7 +242,18 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
                 writeln!(self, "  jmp .L.{}.begin.{}\n", fn_info.fn_id, cnt)?;
                 writeln!(self, ".L.{}.end.{}:\n", fn_info.fn_id, cnt)?;
             }
-            Stmt::Null => {}
+            StmtKind::Decl(_, var_decls) => {
+                for var in var_decls.iter() {
+                    let Some(init) = var.init.as_ref() else { continue };
+
+                    let obj_id = self.resolved.expr_resolutions[&var.declarator.id];
+                    let offset = fn_layout.slots[&obj_id];
+
+                    self.gen_expr(init, fn_layout)?;
+                    writeln!(self, "  mov [rbp - {}], rax", offset)?;
+                }
+            }
+            StmtKind::Null => {}
         }
         Ok(())
     }
@@ -273,9 +284,8 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
             writeln!(self, "  mov [rbp - {}], rax", dest_offset)?;
         }
 
-        for exp in func.stmts {
-            self.gen_stmt(&exp, &mut context, &fn_info, &fn_layout)?;
-        }
+        self.gen_stmt(&func.body, &mut context, &fn_info, &fn_layout)?;
+
         writeln!(self, ".L.{}.return:\n", fn_info.fn_id)?;
         writeln!(self, "  mov rsp, rbp\n")?;
         writeln!(self, "  pop rbp\n")?;

@@ -88,29 +88,28 @@ impl Resolver {
             self.declare_param(name);
         }
 
-        for stmt in &func.stmts {
-            self.resolve_stmt(stmt);
-        }
+        self.resolve_stmt(&func.body);
+
         self.scopes.pop();
         self.operating_fn.take().unwrap()
     }
 
     pub fn resolve_stmt(&mut self, stmt: &Stmt) {
-        match &stmt {
-            Stmt::Block(stmts) => {
+        match &stmt.kind {
+            StmtKind::Block(stmts) => {
                 self.scopes.push(ScopeFrame::default());
                 for internal_stmt in stmts {
                     self.resolve_stmt(internal_stmt);
                 }
                 self.scopes.pop();
             }
-            Stmt::ExprStmt(expr) => {
+            StmtKind::ExprStmt(expr) => {
                 self.resolve_expr(expr.as_ref());
             }
-            Stmt::Return(expr) => {
+            StmtKind::Return(expr) => {
                 self.resolve_expr(expr.as_ref());
             }
-            Stmt::For(init, cond, incr, stmt) => {
+            StmtKind::For(init, cond, incr, stmt) => {
                 init.as_ref()
                     .as_ref()
                     .inspect(|expr| self.resolve_expr(expr));
@@ -122,11 +121,11 @@ impl Resolver {
                     .inspect(|expr| self.resolve_expr(expr));
                 self.resolve_stmt(stmt);
             }
-            Stmt::While(cond, stmt) => {
+            StmtKind::While(cond, stmt) => {
                 self.resolve_expr(cond.as_ref());
                 self.resolve_stmt(stmt);
             }
-            Stmt::If(cond, if_stmt, else_stmt) => {
+            StmtKind::If(cond, if_stmt, else_stmt) => {
                 self.resolve_expr(cond.as_ref());
                 self.resolve_stmt(if_stmt);
                 else_stmt
@@ -134,7 +133,20 @@ impl Resolver {
                     .as_ref()
                     .inspect(|stmt| self.resolve_stmt(stmt));
             }
-            Stmt::Null => (),
+            StmtKind::Decl(_, var_decls)=>{
+                for var in var_decls{
+                    let name = match &var.declarator.direct{
+                        DirectDeclatator::Ident(sym) => sym
+                    };
+                    let id = self.declare_local(name);
+                    self.resolved.expr_resolutions.insert(var.declarator.id, id);
+                    var.init
+                        .as_ref()
+                        .inspect(|expr| self.resolve_expr(expr)); 
+
+                }
+            }
+            StmtKind::Null => (),
         }
     }
 
@@ -163,8 +175,9 @@ impl Resolver {
             }
             ExprKind::Var(sym) => {
                 let id = expr.id;
-                let obj = self.lookup(sym).unwrap_or_else(||self.declare_local(sym));
-                //.expect("identfier must be declared before use");
+                let obj = self
+                    .lookup(sym)
+                    .expect("identfier must be declared before use");
                 self.resolved.expr_resolutions.insert(id, obj);
             }
             ExprKind::Literal(_) | ExprKind::Error => (),
