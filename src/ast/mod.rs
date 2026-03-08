@@ -12,8 +12,8 @@ pub enum Ty {
 }
 
 pub struct Fn {
-    pub name: Symbol,
-    pub params: Vec<(Symbol, Ty)>,
+    pub spec: DeclSpec,
+    pub declarator: Declarator,
     pub body: Stmt,
 }
 
@@ -25,13 +25,29 @@ pub struct PointerDecl{
     pub inner: Option<Box<PointerDecl>>,
 }
 
-pub enum DirectDeclatator{
+pub struct ParamDecl {
+    pub spec: DeclSpec,
+    pub declarator: Option<Declarator>,
+}
+
+pub enum DirectDeclarator{
     Ident(Symbol),
+    Paren(Box<Declarator>),
+
+    Func {
+        inner: Box<DirectDeclarator>,
+        params: Vec<ParamDecl>,   
+    },
+
+    Array {
+        inner: Box<DirectDeclarator>,
+        size: Option<Box<Expr>>,
+    },
 }
 
 pub struct Declarator{
     pub ptr: Option<Box<PointerDecl>>,
-    pub direct: DirectDeclatator,
+    pub direct: DirectDeclarator,
     pub id: NodeId,
 }
 
@@ -102,5 +118,29 @@ impl BinaryOpKind {
     pub fn is_compartor(&self) -> bool {
         use BinaryOpKind::*;
         matches!(&self, Ne | EqEq | Ge | Gt | Le | Lt)
+    }
+}
+
+impl Declarator {
+    pub fn function_name(&self) -> Option<&Symbol> {
+        fn peel(d: &DirectDeclarator) -> Option<&Symbol> {
+            match d {
+                DirectDeclarator::Ident(sym) => Some(sym),
+
+                DirectDeclarator::Paren(inner_decl) => {
+                    peel(&inner_decl.direct)
+                }
+
+                DirectDeclarator::Func { inner, .. } => {
+                    peel(inner)
+                }
+
+                DirectDeclarator::Array { inner, .. } => {
+                    peel(inner)
+                }
+            }
+        }
+
+        peel(&self.direct)
     }
 }

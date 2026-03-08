@@ -78,7 +78,7 @@ impl Parser {
         stmt
     }
 
-    fn next_declarator(&mut self, ptr: Option<Box<PointerDecl>>, direct: DirectDeclatator) -> Declarator{
+    fn next_declarator(&mut self, ptr: Option<Box<PointerDecl>>, direct: DirectDeclarator) -> Declarator{
         let decl = Declarator {
             id: self.node_cnt,
             ptr,
@@ -331,9 +331,9 @@ impl Parser {
         PointerDecl { inner: None }
     }
 
-    pub fn parse_direct_decl(&mut self) -> DirectDeclatator{
+    pub fn parse_direct_decl(&mut self) -> DirectDeclarator{
         if let Some((sym, _)) = self.eat_ident(){
-            DirectDeclatator::Ident(sym)
+            DirectDeclarator::Ident(sym)
         }
         else{
             panic!("no direct decl found")
@@ -425,30 +425,15 @@ impl Parser {
         }
     }
 
-    pub fn parse_params_def(&mut self) -> Vec<(Symbol, Ty)> {
-        let mut res = vec![];
-        if self.eat(&TokenKind::RParen) {
-            return res;
-        }
-
-        res.push((self.parse_ident().unwrap().0, Ty::Int));
-        while !self.eat(&TokenKind::RParen) {
-            self.expect_and_eat(&TokenKind::Comma);
-            res.push((self.parse_ident().unwrap().0, Ty::Int));
-        }
-        res
-    }
-
     pub fn parse_fn(&mut self) -> Fn {
-        let (name, _) = self.parse_ident().unwrap();
-        self.expect_and_eat(&TokenKind::LParen);
-        let params = self.parse_params_def();
+        let spec = self.parse_decl_spec();
+        let declarator = self.parse_declarator();
         self.expect_and_eat(&TokenKind::LBrace);
         let body = self.parse_compoundstmt();
         Fn {
-            name: name.clone(),
+            spec,
+            declarator,
             body,
-            params,
         }
     }
 

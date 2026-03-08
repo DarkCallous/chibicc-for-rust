@@ -75,12 +75,12 @@ impl Resolver {
         self.resolved.fn_info = source
             .fns
             .iter()
-            .map(|func| (func.name.clone(), self.resolve_fn(func)))
+            .map(|func| (func.declarator.function_name().expect("invalid fn def").clone(), self.resolve_fn(func)))
             .collect::<HashMap<_, _>>();
     }
 
     pub fn resolve_fn(&mut self, func: &Fn) -> FnInfo {
-        let id = self.declare_fn(&func.name);
+        let id = self.declare_fn(func.declarator.function_name().expect("invalid fn def"));
         self.operating_fn = Some(FnInfo::new(id));
         let fn_frame = ScopeFrame::default();
         self.scopes.push(fn_frame);
@@ -136,7 +136,8 @@ impl Resolver {
             StmtKind::Decl(_, var_decls)=>{
                 for var in var_decls{
                     let name = match &var.declarator.direct{
-                        DirectDeclatator::Ident(sym) => sym
+                        DirectDeclarator::Ident(sym) => sym,
+                        _ => todo!("not implemented further decls")
                     };
                     let id = self.declare_local(name);
                     self.resolved.expr_resolutions.insert(var.declarator.id, id);

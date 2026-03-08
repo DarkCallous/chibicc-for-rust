@@ -1,5 +1,6 @@
 ﻿use super::resolver::*;
 use abi::{Abi, Reg};
+use core::panic;
 use std::io::{self, Write};
 
 use crate::{
@@ -259,7 +260,7 @@ impl<W: Write, ABI: Abi + Default> CodeGen<W, ABI> {
     }
 
     pub fn gen_fn(&mut self, func: Fn) -> Result<(), io::Error> {
-        let mut context = FnContext::new(func.name);
+        let mut context = FnContext::new(func.declarator.function_name().expect("invalid fn def").clone());
         let fn_info = self.resolved.fn_info.remove(&context.name).unwrap();
         let fn_layout = self.layouts.fns.remove(&fn_info.fn_id).unwrap();
         writeln!(self, "{}:\n", context.name)?;
